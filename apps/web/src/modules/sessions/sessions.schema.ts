@@ -2,11 +2,13 @@ import { z } from "zod";
 import { SessionDocumentSchema } from "@/modules/session-documents/session-documents.schema";
 import { 
     AI_STRICTNESS,
+    CONTENT_TYPE,
     DIFFICULTY,
     DOMAIN,
     ROLE_LEVEL,
     SESSION_DURATIONS,
     SESSION_TYPE,
+    SPEAKER,
     STATUS,
     TOPIC_TYPE,
 } from "@/db/enums";
@@ -253,3 +255,74 @@ export const LiveSessionInfoSchema =
         ended_at : z.iso.datetime().optional(),
         joined_at: z.iso.datetime().optional(),
     });
+
+/**
+ * Lean projection of one session for the dashboard history + the results
+ * page. Heavy data (turns, evaluations, insights) never travels in this
+ * shape; it belongs to the per-session details query.
+ */
+export const SessionSummarySchema = z.object({
+    session_id: z.uuid(),
+    session_type: z.enum(SESSION_TYPE),
+    topic_type: z.enum(TOPIC_TYPE),
+    role_level: z.enum(ROLE_LEVEL),
+    difficulty: z.enum(DIFFICULTY),
+    domain: z.enum(DOMAIN),
+    custom_domain: z.string().nullable(),
+    duration_minutes: z.number(),
+    status: z.enum(STATUS),
+    overall_score: z.number().nullable(),
+    total_turns: z.number().nullable(),
+    scheduled_at: z.iso.datetime(),
+    started_at: z.iso.datetime().nullable(),
+    ended_at: z.iso.datetime().nullable(),
+    actual_duration_sec: z.number().nullable(),
+    created_at: z.iso.datetime(),
+});
+
+export const SessionTurnSchema = z.object({
+    turn_id: z.uuid(),
+    turn_number: z.number(),
+    speaker: z.enum(SPEAKER),
+    content: z.string(),
+    content_type: z.enum(CONTENT_TYPE),
+    evaluation_score: z.number().nullable(),
+    evaluation_feedback: z.string().nullable(),
+    // rubric dimensions differ per question type (technical/behavioral/debate/
+    // general) and are always 0-10 floats; the AI service stores them as a
+    // plain dict, so validate the shape instead of hardcoding one variant.
+    evaluation_rubric: z.record(z.string(), z.number()).nullable(),
+    difficulty_applied: z.enum(DIFFICULTY).nullable(),
+    created_at: z.iso.datetime(),
+});
+
+export const EvaluationSummarySchema = z.object({
+    evaluation_summary_id: z.uuid(),
+    overall_score: z.number(),
+    strength_areas: z.array(z.object({
+        topic: z.string(),
+        score: z.number(),
+        evidence: z.string(),
+    })).nullable(),
+    weak_areas: z.array(z.object({
+        topic: z.string(),
+        score: z.number(),
+        severity: z.enum(["low", "medium", "high"]),
+        evidence: z.string(),
+    })).nullable(),
+    progression_notes: z.string().nullable(),
+    detailed_feedback: z.string().nullable(),
+    recommendations: z.array(z.object({
+        topic: z.string(),
+        priority: z.enum(["low", "medium", "high"]),
+        reason: z.string(),
+        action_items: z.array(z.string()),
+    })).nullable(),
+    created_at: z.iso.datetime(),
+});
+
+export const SessionDetailsSchema = z.object({
+    session: SessionSummarySchema,
+    turns: z.array(SessionTurnSchema),
+    evaluation_summary: EvaluationSummarySchema.nullable(),
+});

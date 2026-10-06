@@ -1,5 +1,5 @@
 import { ConnectionService } from "@/connection/connection-service";
-import { LiveSessionInfo } from "@/modules";
+import { LiveSessionInfo, SessionDetails, SessionSummary } from "@/modules";
 import { SessionCacheService } from "@/frontend/cache/session-cache.service";
 import { ConfigurationError } from "@/exceptions/ConfigurationError";
 import { ConnectionState } from "@/interview-session/interview-session-types";
@@ -119,6 +119,35 @@ export class SessionService{
     }
     async resume_session(session_id: string): Promise<ResumeSession>{
         const res = await this.connection_service.resume_session(session_id);
+
+        if (!res.success) {
+            throw new Error(res.message, {
+                cause: {
+                    ...res,
+                },
+            });
+        }
+
+        return res.data;
+    }
+    async list_sessions(): Promise<SessionSummary[]>{
+        const res = await this.connection_service.list_sessions();
+
+        if (!res.success) {
+            throw new Error(res.message, {
+                cause: {
+                    ...res,
+                },
+            });
+        }
+
+        return res.data;
+    }
+    async get_session_details(
+        session_id: string,
+    ): Promise<SessionDetails>{
+        const res = await this.connection_service
+            .get_session_details(session_id);
 
         if (!res.success) {
             throw new Error(res.message, {

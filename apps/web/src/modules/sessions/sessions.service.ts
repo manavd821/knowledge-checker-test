@@ -1,5 +1,7 @@
 import { SessionRepository } from "@/modules/sessions/sessions.repository";
 import { SessionDocumentRepository } from "@/modules/session-documents/session-documents.repository";
+import { TurnsRepository } from "@/modules/turns/turns.repository";
+import { EvaluationSummariesRepository } from "@/modules/evaluation-summaries/evaluation-summaries.repository";
 import { CreateSession, CreateSessionParticipants, CreateSessionRoute, CreateSessionSchema, NewSession, SelectSession, Status } from "@/modules";
 import { IAIClient } from "@/ai/ai-client";
 import { DocumentExtractionService } from "@/document/document-extraction.service";
@@ -23,6 +25,8 @@ export class SessionService{
         private readonly doc_extract_service: DocumentExtractionService,
         private readonly object_store: IObjectStorage,
         private readonly session_participant_service: SessionParticipantsService,
+        private readonly turns_repo: TurnsRepository,
+        private readonly evaluation_summary_repo: EvaluationSummariesRepository,
     ){}
     parseFormData(formData: FormData) {
         const data : Record<string , FormDataEntryValue | FormDataEntryValue[]> = {};
@@ -320,5 +324,56 @@ export class SessionService{
             );
         }
         return { session, participant }
+    }
+
+    /**
+     * Lean history for the dashboard: every session the user created or
+     * participates in, newest first. Heavy payloads (turns, evaluations,
+     * insights) never travel here.
+     */
+    async list_sessions_for_user(user_id: string){
+        return this.session_repo.list_by_user(user_id);
+    }
+
+    /**
+     * One session's results: the session itself, its turns in conversation
+     * order and the persisted evaluation summary when one exists.
+     *
+     * Ownership is enforced here against the authenticated user id (never a
+     * client-supplied value): the creator always may read it, anyone else
+     * must be a participant of the session.
+     */
+    async get_session_details(
+        session_id: string,
+        user_id: string,
+    ){
+        const session =
+            await this.session_repo.get_by_session_id(session_id);
+        if (!session) {
+            throw new NotFoundError(
+                "Session not found",
+                session_id,
+                "session",
+            );
+        }
+
+        if (session.created_by !== user_id) {
+            await this.session_participant_service
+                .get_participant_by_user_and_session(
+                    user_id,
+                    session_id,
+                );
+        }
+
+        const [ turns, evaluation_summary ] = await Promise.all([
+            this.turns_repo.get_by_session_id(session_id),
+            this.evaluation_summary_repo.get_by_session_id(session_id),
+        ]);
+
+        return {
+            session,
+            turns,
+            evaluation_summary,
+        };
     }
 }

@@ -3,6 +3,8 @@ import { SessionRepository } from "@/modules/sessions/sessions.repository";
 import type { DB } from "@/db/types";
 import { SessionService } from "@/modules/sessions/sessions.service";
 import { SessionDocumentRepository } from "@/modules/session-documents/session-documents.repository";
+import { TurnsRepository } from "@/modules/turns/turns.repository";
+import { EvaluationSummariesRepository } from "@/modules/evaluation-summaries/evaluation-summaries.repository";
 import { get_ai_client } from "@/ai/factory";
 import { get_document_extraction_service } from "@/document/factory";
 import { get_object_storage } from "@/storage/factory";
@@ -19,6 +21,8 @@ export function createRepositories(db : DB){
         session_docs : new SessionDocumentRepository(db),
         session_participants : new SessionParticipantsRepository(db),
         session_connections: new SessionConnectionsRepository(db),
+        turns: new TurnsRepository(db),
+        evaluation_summaries: new EvaluationSummariesRepository(db),
     }
 }
 export function createServices(db : DB){
@@ -28,6 +32,8 @@ export function createServices(db : DB){
         session_docs,
         session_participants,
         session_connections,
+        turns,
+        evaluation_summaries,
     } = createRepositories(db);
 
     const ai_client = get_ai_client();
@@ -50,6 +56,8 @@ export function createServices(db : DB){
             doc_extract_service,
             object_storage,
             session_participants_service,
+            turns,
+            evaluation_summaries,
         ),
         session_participants : session_participants_service,
         session_connections : session_connections_service,

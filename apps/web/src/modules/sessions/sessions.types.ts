@@ -2,6 +2,8 @@ import {
     CreateSessionRouteShema, 
     CreateSessionSchema, 
     LiveSessionInfoSchema,
+    SessionDetailsSchema,
+    SessionSummarySchema,
 } from "@/modules/sessions/sessions.schema";
 import { sessions } from "@/modules/sessions/sessions.table";
 import { z } from "zod";
@@ -36,4 +38,7 @@ export type NewSession = InferInsertModel<typeof sessions>;
 export type SelectSession = InferSelectModel<typeof sessions>;
 
 export type LiveSessionInfo = z.infer<typeof LiveSessionInfoSchema>;
+
+export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+export type SessionDetails = z.infer<typeof SessionDetailsSchema>;
 
