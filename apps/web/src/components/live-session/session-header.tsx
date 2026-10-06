@@ -3,6 +3,7 @@ import { Bot } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ConnectionStatus } from "@/components/live-session/connection-status";
 import { LeaveButton } from "@/components/live-session/leave-button";
+import { SessionPanels } from "@/components/live-session/layout/session-panels";
 import { has_ai_participant } from "@/components/live-session/participant-meta";
 import { cn } from "@/lib/utils";
 import { useLiveSessionInfo } from "@/react/live-session/hooks/use-live-session-info";
@@ -59,6 +60,12 @@ const STATUS_VARIANT: Record<
  * left, then the authoritative timer, the session status, the AI status
  * (derived from the AI participant's presence), the connection status and the
  * leave action on the right.
+ *
+ * Responsive behaviour: the header wraps instead of ever overflowing, the
+ * brand / session identity collapse below `md` (the same information is in
+ * the Session sheet) and the `SessionPanels` sheet triggers only show below
+ * `lg`, where the permanent side columns are hidden. The timer, the status
+ * badges, the connection status and the leave action are always rendered.
  */
 export function SessionHeader() {
     const session = useLiveSessionInfo();
@@ -85,14 +92,14 @@ export function SessionHeader() {
     return (
         <header
         data-testid="session-header"
-        className="flex min-h-16 shrink-0 items-center justify-between gap-4 border-b bg-background px-4 py-2"
+        className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-4 py-2"
         >
             <div className="flex min-w-0 items-center gap-3">
-                <span className="shrink-0 text-sm font-semibold tracking-tight">
+                <span className="hidden shrink-0 text-sm font-semibold tracking-tight md:inline">
                     Knowledge Checker
                 </span>
-                <Separator orientation="vertical" className="h-6"/>
-                <div className="min-w-0">
+                <Separator orientation="vertical" className="hidden h-6 md:block"/>
+                <div className="hidden min-w-0 md:block">
                     <p className="truncate text-sm font-medium">
                         {TOPIC_TYPE_META[topic_type].label}
                         <span className="text-muted-foreground">
@@ -110,9 +117,15 @@ export function SessionHeader() {
                         </span>
                     </p>
                 </div>
+
+                {/*
+                    below lg the two side columns are gone, so their content
+                    is offered through these sheets instead
+                */}
+                <SessionPanels/>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <span
                 data-testid="session-timer"
                 className="font-mono text-sm tabular-nums"

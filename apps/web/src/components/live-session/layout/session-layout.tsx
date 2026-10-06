@@ -12,16 +12,22 @@ import { SessionHeader } from "@/components/live-session/session-header";
  *   body          left sidebar | video workspace | transcript sidebar
  *   control bar   (full width, always visible)
  *
- * The root owns the viewport (`h-screen overflow-hidden`), every region has its
+ * The root owns the viewport (`h-dvh overflow-hidden`, `dvh` so mobile
+ * browser chrome cannot push the control bar off screen), every region has its
  * own min-h-0 / overflow handling, so the page itself never scrolls and nothing
  * is ever positioned underneath a sidebar.
+ *
+ * Responsive shape: from `lg` up the body keeps the three permanent columns;
+ * below `lg` the side columns are dropped (their content moves into the
+ * header's `SessionPanels` sheets) and the video workspace takes the full
+ * width.
  */
 export function SessionLayout() {
 
     return (
         <div
         data-testid="session-layout"
-        className="flex h-screen flex-col overflow-hidden"
+        className="flex h-dvh flex-col overflow-hidden"
         >
             <SessionHeader/>
 

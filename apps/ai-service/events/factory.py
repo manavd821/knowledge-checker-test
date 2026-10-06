@@ -15,10 +15,17 @@ def get_event_registry() -> EventRegistry:
     return EventRegistry()
 
 
+# Strong reference to the built bus so the shutdown path never has to
+# (re)build it just to drain it. None until get_event_bus() is first used.
+_built_event_bus: EventBus | None = None
+
+
 @lru_cache
 def get_event_bus():
+    global _built_event_bus
+
     bus = EventBus(get_event_registry())
-    
+
     stream = get_stream_redis_cloud()
     conversation_event_publisher = ConversationEventPublisher(stream)
     
@@ -59,9 +66,26 @@ def get_event_bus():
         LiveSessionEvent.RUNTIME_CONTEXT_UPDATED,
         conversation_event_publisher,
     )
-    
+
+    _built_event_bus = bus
     return bus
 
 def get_event_publisher():
     bus = get_event_bus()
     return EventPublisher(bus)
+
+
+async def shutdown_event_bus() -> None:
+    """
+    Application shutdown hook.
+
+    Waits for the background tasks of every handler (SessionProcessor's
+    graph executions) so shared clients and the event loop executor are
+    never closed while they are still running. Safe to call when the bus
+    was never built in this process.
+    """
+    bus = _built_event_bus
+    if bus is None:
+        return
+
+    await bus.shutdown()

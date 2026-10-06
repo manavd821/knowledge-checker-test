@@ -49,6 +49,12 @@ class SessionProcessor(IEventHandler):
             UUID,
             SessionExecutionState,
         ] = {}
+        # Strong references to the per-session processing tasks. asyncio only
+        # keeps weak references to tasks, and these tasks must be owned (and
+        # awaited on shutdown) by this component, not by the caller that
+        # happened to enqueue the event.
+        self._background_tasks : set[asyncio.Task] = set()
+        self._drained = False
         
     @property
     def policy(self) -> HandlerPolicy:
@@ -72,6 +78,15 @@ class SessionProcessor(IEventHandler):
         await self._enqueue(payload)
     
     async def _enqueue(self, payload: CandidateTurnCompleted):
+        if self._drained:
+            # Shutdown already started: the session is gone, so no new
+            # processing may be spawned on a loop that is about to close.
+            logger.warning(
+                "SessionProcessor is shutting down, dropping candidate turn",
+                session_id=str(payload.session_id),
+            )
+            return
+
         state = self._sessions.setdefault(
             payload.session_id,
             SessionExecutionState()
@@ -81,10 +96,48 @@ class SessionProcessor(IEventHandler):
             return
         
         state.running = True
-        asyncio.create_task(
-            self._process_session(payload.session_id)
+        self._start_processing(payload.session_id)
+
+    def _start_processing(self, session_id: UUID) -> None:
+        task = asyncio.create_task(
+            self._process_session(session_id),
+            name=f"session-processor:{session_id}",
         )
-    
+        self._background_tasks.add(task)
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task) -> None:
+        self._background_tasks.discard(task)
+        if task.cancelled():
+            return
+        # Failures are already logged by _process_session; retrieve the
+        # exception here so this owner, not the event loop, accounts for it.
+        task.exception()
+
+    async def drain(self) -> None:
+        """
+        Stop accepting new turns and wait for every in-flight
+        _process_session() task (LangGraph execution, Gemini calls,
+        Redis publishes) to finish.
+
+        The component that owns the event loop must await this BEFORE
+        closing shared clients or shutting down the loop executor.
+        """
+        self._drained = True
+
+        pending = len(self._background_tasks)
+        if pending:
+            logger.info(
+                "Waiting for in-flight session processing to finish",
+                pending=pending,
+            )
+
+        while self._background_tasks:
+            await asyncio.gather(
+                *list(self._background_tasks),
+                return_exceptions=True,
+            )
+
     async def _process_session(self, session_id: UUID):
         state = self._sessions[session_id]
         try:

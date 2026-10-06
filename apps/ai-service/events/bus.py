@@ -74,3 +74,22 @@ class EventBus:
     
             for handler in handlers:
                 await handler.handle(event, payload)
+
+    async def shutdown(self) -> None:
+        """
+        Stop accepting new work and wait for the background tasks of every
+        subscribed handler.
+
+        The owner of the event loop must await this before closing shared
+        clients or shutting down the loop executor.
+        """
+        handlers: set[IEventHandler] = set()
+        for subscribed in self._handlers.values():
+            handlers.update(subscribed)
+
+        if not handlers:
+            return
+
+        await asyncio.gather(
+            *(handler.drain() for handler in handlers),
+        )

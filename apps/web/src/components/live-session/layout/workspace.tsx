@@ -94,7 +94,7 @@ export function WorkSpace(){
     return (
         <div
         data-testid="workspace"
-        className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-4"
+        className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3 sm:p-4"
         >
             {has_notices ? (
                 <div className="flex max-h-40 shrink-0 flex-col gap-2 overflow-y-auto">

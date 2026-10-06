@@ -19,6 +19,10 @@ import { useConnectionStatus } from "@/react/live-session/hooks/use-connection-s
  * Enabling the microphone publishes your mic. Unlocking audio playback lets the
  * browser play *other people's* audio. They are two different things, and both
  * go through the existing InterviewSessionManager / realtime provider.
+ *
+ * The buttons keep their labels from `sm` up and collapse to compact icon
+ * buttons below it, so the whole bar stays on screen without ever scrolling
+ * horizontally; the `title` attributes keep the actions discoverable.
  */
 export function MediaControls() {
     const manager = useSessionManager();
@@ -55,7 +59,9 @@ export function MediaControls() {
             title={mic_enabled ? "Mute microphone" : "Unmute microphone"}
             >
                 {mic_enabled ? <Mic/> : <MicOff/>}
-                {mic_enabled ? "Mute" : "Unmute"}
+                <span className="hidden sm:inline">
+                    {mic_enabled ? "Mute" : "Unmute"}
+                </span>
             </Button>
 
             <Button
@@ -70,7 +76,9 @@ export function MediaControls() {
             title={camera_enabled ? "Turn off camera" : "Turn on camera"}
             >
                 {camera_enabled ? <Video/> : <VideoOff/>}
-                {camera_enabled ? "Turn off camera" : "Turn on camera"}
+                <span className="hidden sm:inline">
+                    {camera_enabled ? "Turn off camera" : "Turn on camera"}
+                </span>
             </Button>
 
             {/*
