@@ -5,6 +5,7 @@ export interface IRealTimeProvider{
 
     registerRoomEvent() : void;
     connect(connection: SessionConnection) : Promise<string>;
+    disconnect() : Promise<void>;
 
     
     on<K extends keyof RealtimeProviderEvents>(

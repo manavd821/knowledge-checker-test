@@ -56,14 +56,19 @@ export class SessionParticipantsRepository{
         participant_id: string,
         update: Partial<SelectSessionParticipants>,
     ){
-        if(update.completed_duration_sec){
-            update.completed_duration_sec = sql`
+        // completed_duration_sec accumulates across connections, it is never
+        // overwritten with the latest connection's duration
+        const set = typeof update.completed_duration_sec === "number"
+            ? {
+                ...update,
+                completed_duration_sec: sql<number>`
                     ${session_participants.completed_duration_sec} + ${update.completed_duration_sec}
-                `
-        }
+                `,
+            }
+            : { ...update };
         await this.db
             .update(session_participants)
-            .set(update)
+            .set(set)
             .where(eq(
                 session_participants.participant_id, participant_id
             ));

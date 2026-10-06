@@ -1,40 +1,20 @@
 "use client";
-import { 
-    Sidebar,
-    useSidebar, 
-} from "@/components/ui/sidebar";
-import { CollapsedSidebar } from "@/components/live-session//layout/collapsed-sidebar";
-import { cn } from "@/lib/utils";
 import { LeftContent } from "@/components/live-session/left-section/left-content";
 import { LeftHeader } from "@/components/live-session/left-section/left-header";
 
+/**
+ * Left session sidebar (plain flex column, not positioned, never overlaps the
+ * header): session identity, session information, progress, participants and
+ * connection status. It scrolls on its own.
+ */
 export function LeftSidebar(){
-    const { state }  = useSidebar();
     return (
-        <Sidebar
-        side="left"
-        collapsible="icon"
-        variant="sidebar"
-        className={
-            cn()
-        }
+        <aside
+        data-testid="left-sidebar"
+        className="flex w-72 shrink-0 flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground"
         >
-            {
-                state === "collapsed"
-                ? (
-                    <CollapsedSidebar
-                        side="left"
-                        />
-                )
-                : (
-                    <>
-                        <LeftHeader/>
-                        <LeftContent/>
-                    </>
-
-                )
-            }
-            
-        </Sidebar>
-    )
+            <LeftHeader/>
+            <LeftContent/>
+        </aside>
+    );
 }

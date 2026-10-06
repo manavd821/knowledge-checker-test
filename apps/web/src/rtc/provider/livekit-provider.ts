@@ -1,22 +1,56 @@
-import { IRealTimeProvider } from "@/rtc/provider/realtime-provider";
-import { TypedEventEmitter } from "@/rtc/provider/typed-event-emitter";
-import { RealtimeProviderEvents } from "@/rtc/events/realtime-provider-events";
-import { SessionConnection } from "@/rtc/provider/types/session-connection";
-import { 
+import { DataChannelMessage } from "@/messaging/types";
+import {
     LocalParticipant,
+    LocalTrackPublication,
+    Participant,
     RemoteParticipant,
-    Room, 
-    RoomEvent, 
-    VideoPresets,
     RemoteTrack,
     RemoteTrackPublication,
-    LocalTrackPublication,
+    Room,
+    RoomEvent,
     Track,
+    TrackPublication,
+    VideoPresets,
 } from "livekit-client";
-import { ParticipantVM } from "@/store/types";
-import { DataChannelMessage } from "@/messaging/types";
+import { IRealTimeProvider } from "@/rtc/provider/realtime-provider";
+import { SessionConnection } from "@/rtc/provider/types/session-connection";
+import { TypedEventEmitter } from "@/rtc/provider/typed-event-emitter";
+import { RealtimeProviderEvents } from "@/rtc/events/realtime-provider-events";
+import { LocalParticipantVM, ParticipantRole, ParticipantVM } from "@/store/types";
 
-export class LivekitProvider 
+const AI_ROLE: ParticipantRole = "ai";
+
+/**
+ * Maps a LiveKit publication source onto the application level track source.
+ * Returns null for anything the live session UI does not render.
+ *
+ * `Track.Source.Unknown` falls back to the publication kind, some publishers
+ * (LiveKit agents among them) do not always tag their audio publication with
+ * `microphone`, and the AI audio must still reach the UI.
+ */
+const to_track_source = (
+    publication: TrackPublication
+): "camera" | "microphone" | null => {
+    switch (publication.source) {
+        case Track.Source.Camera:
+            return "camera";
+        case Track.Source.Microphone:
+            return "microphone";
+        case Track.Source.Unknown:
+            if (publication.kind === Track.Kind.Video) {
+                return "camera";
+            }
+            if (publication.kind === Track.Kind.Audio) {
+                return "microphone";
+            }
+            return null;
+        default:
+            // screen share is not part of the live session UI
+            return null;
+    }
+};
+
+export class LivekitProvider
     extends TypedEventEmitter<RealtimeProviderEvents>
     implements IRealTimeProvider
 {
@@ -35,42 +69,63 @@ export class LivekitProvider
         super();
         this.registerRoomEvent();
     }
-    private toParticipantVM(
-        participant: RemoteParticipant
-    ) : ParticipantVM {
-        const metadata = participant.metadata
-            ? JSON.parse(participant.metadata)
-            : {};
-        return {
-            id: participant.sid,
-            identity: participant.identity,
-            role: metadata.role,
-            cameraEnabled: participant.isCameraEnabled,
-            micEnabled: participant.isMicrophoneEnabled,
-            speaking: participant.isSpeaking
+
+    /**
+     * LiveKit metadata is an opaque string set by whoever issued the token.
+     * It must never be able to break participant rendering.
+     */
+    private parseMetadata(metadata?: string): Record<string, unknown>{
+        if(!metadata){
+            return {};
+        }
+        try {
+            const parsed = JSON.parse(metadata);
+            return parsed && typeof parsed === "object"
+                ? parsed as Record<string, unknown>
+                : {};
+        } catch {
+            return {};
         }
     }
-    private toLocalParticipantVM(
-        participant: LocalParticipant,
-    ): ParticipantVM {
-        const metadata = participant.metadata
-            ? JSON.parse(participant.metadata)
-            : {};
 
+    /**
+     * The AI agent joins the room as a LiveKit agent participant, it does not
+     * carry our role metadata, so the participant kind is the source of truth.
+     */
+    private resolveRole(participant: Participant): ParticipantRole {
+        if(participant.isAgent){
+            return AI_ROLE;
+        }
+        const { role } = this.parseMetadata(participant.metadata);
+        return typeof role === "string"
+            ? role as ParticipantRole
+            : "observer";
+    }
+
+    private toParticipantVM(participant: Participant) : ParticipantVM {
         return {
             id: participant.sid,
             identity: participant.identity,
-            role: metadata.role,
+            role: this.resolveRole(participant),
             cameraEnabled: participant.isCameraEnabled,
             micEnabled: participant.isMicrophoneEnabled,
             speaking: participant.isSpeaking,
+        }
+    }
+
+    private toLocalParticipantVM(
+        participant: LocalParticipant,
+    ): LocalParticipantVM {
+        return {
+            ...this.toParticipantVM(participant),
+            selectedMicId: "",
+            selectedCameraId: "",
         };
     }
 
-
     registerRoomEvent(){
         this.room.on(
-            RoomEvent.ParticipantConnected, 
+            RoomEvent.ParticipantConnected,
             this.handleParticipantConnected
         );
         this.room.on(
@@ -82,7 +137,7 @@ export class LivekitProvider
             this.handleDataRecieved,
         );
         this.room.on(
-        RoomEvent.TrackSubscribed,
+            RoomEvent.TrackSubscribed,
             this.handleTrackSubscribed
         );
 
@@ -90,11 +145,57 @@ export class LivekitProvider
             RoomEvent.TrackUnsubscribed,
             this.handleTrackUnsubscribed
         );
+        // local media has to flow through the same store as remote media so the
+        // UI never needs a second, LiveKit specific code path
         this.room.on(
-            RoomEvent.AudioPlaybackStatusChanged, 
+            RoomEvent.LocalTrackPublished,
+            this.handleLocalTrackPublished
+        );
+        this.room.on(
+            RoomEvent.LocalTrackUnpublished,
+            this.handleLocalTrackUnpublished
+        );
+        this.room.on(
+            RoomEvent.TrackMuted,
+            this.handleTrackMuted
+        );
+        this.room.on(
+            RoomEvent.TrackUnmuted,
+            this.handleTrackUnmuted
+        );
+        this.room.on(
+            RoomEvent.ActiveSpeakersChanged,
+            this.handleActiveSpeakersChanged
+        );
+        this.room.on(
+            RoomEvent.AudioPlaybackStatusChanged,
             this.handlePlaybackBlocked
         );
+        this.room.on(
+            RoomEvent.Reconnecting,
+            this.handleReconnecting
+        );
+        this.room.on(
+            RoomEvent.Reconnected,
+            this.handleReconnected
+        );
+        this.room.on(
+            RoomEvent.Disconnected,
+            this.handleDisconnected
+        );
+        this.room.on(
+            RoomEvent.MediaDevicesError,
+            this.handleMediaDevicesError
+        );
     }
+
+    private emitParticipantUpdate(participant: Participant){
+        this.emit("participantUpdated", {
+            participant: this.toParticipantVM(participant),
+            isLocal: participant.isLocal,
+        });
+    }
+
     private handleParticipantConnected = (
         participant: RemoteParticipant,
     ) => {
@@ -104,6 +205,18 @@ export class LivekitProvider
         this.emit("participantJoined", {
             participant: participant_vm,
             isLocal: false,
+        });
+
+        // a participant can join with tracks already published, TrackSubscribed
+        // only fires for tracks that arrive later
+        participant.trackPublications.forEach(publication => {
+            if(publication.isSubscribed && publication.track){
+                this.handleTrackSubscribed(
+                    publication.track as RemoteTrack,
+                    publication as RemoteTrackPublication,
+                    participant,
+                );
+            }
         });
     };
 
@@ -124,15 +237,26 @@ export class LivekitProvider
         payload: Uint8Array,
         participant?: RemoteParticipant,
     ) => {
-        const message = JSON.parse(
-            this.decoder.decode(payload)
-        ) as DataChannelMessage;
+        let message: DataChannelMessage;
+        try {
+            message = JSON.parse(
+                this.decoder.decode(payload)
+            ) as DataChannelMessage;
+        } catch {
+            // data packets are not guaranteed to be our JSON protocol
+            console.warn(
+                "Ignoring non application data packet",
+                { sender_id: participant?.identity },
+            );
+            return;
+        }
 
         this.emit("dataReceived", {
             message,
             sender_id: participant?.identity,
         });
     };
+
     private handlePlaybackBlocked = () => {
         if (!this.room.canPlaybackAudio) {
             this.emit("audioPlaybackBlocked", undefined); 
@@ -144,28 +268,8 @@ export class LivekitProvider
         publication: RemoteTrackPublication,
         participant: RemoteParticipant,
     ) => {
-        console.log(
-            "TRACK SUBSCRIBED",
-            {
-                participant: participant.identity,
-                sid: participant.sid,
-                kind: track.kind,
-                source: publication.source,
-            }
-        );
+        const source = to_track_source(publication);
 
-        if (
-            track.kind !== Track.Kind.Video &&
-            track.kind !== Track.Kind.Audio
-        ) {
-            return;
-        }
-        const source =
-            publication.source === Track.Source.Camera
-                ? "camera"
-                : publication.source === Track.Source.Microphone
-                    ? "microphone"
-                    : null;
         if (!source) {
             return;
         }
@@ -183,12 +287,7 @@ export class LivekitProvider
         publication: RemoteTrackPublication,
         participant: RemoteParticipant,
     ) => {
-        const source =
-            publication.source === Track.Source.Camera
-                ? "camera"
-                : publication.source === Track.Source.Microphone
-                    ? "microphone"
-                    : null;
+        const source = to_track_source(publication);
 
         if (!source) {
             return;
@@ -198,6 +297,95 @@ export class LivekitProvider
             participant_id: participant.sid,
             source,
         });
+    };
+
+    private handleLocalTrackPublished = (
+        publication: LocalTrackPublication,
+        participant: LocalParticipant,
+    ) => {
+        const source = to_track_source(publication);
+        const media_track = publication.track?.mediaStreamTrack;
+        if(!source || !media_track){
+            return;
+        }
+        // reuses the exact same store writes as remote tracks
+        this.emit("trackSubscribed", {
+            participant_id: participant.sid,
+            source,
+            track: media_track,
+        });
+        this.emitParticipantUpdate(participant);
+    };
+
+    private handleLocalTrackUnpublished = (
+        publication: LocalTrackPublication,
+        participant: LocalParticipant,
+    ) => {
+        const source = to_track_source(publication);
+        if(!source){
+            return;
+        }
+        this.emit("trackUnsubscribed", {
+            participant_id: participant.sid,
+            source,
+        });
+        this.emitParticipantUpdate(participant);
+    };
+
+    private handleTrackMuted = (
+        publication: TrackPublication,
+        participant: Participant,
+    ) => {
+        this.emitParticipantUpdate(participant);
+    };
+
+    private handleTrackUnmuted = (
+        publication: TrackPublication,
+        participant: Participant,
+    ) => {
+        this.emitParticipantUpdate(participant);
+    };
+
+    private handleActiveSpeakersChanged = (speakers: Participant[]) => {
+        // only the speakers present in the current list need to be recomputed,
+        // everyone who dropped out is reset to speaking: false
+        this.room.remoteParticipants.forEach(participant => {
+            if(!speakers.includes(participant) && participant.isSpeaking){
+                this.emit("participantUpdated", {
+                    participant: {
+                        ...this.toParticipantVM(participant),
+                        speaking: false,
+                    },
+                    isLocal: false,
+                });
+            }
+        });
+        speakers.forEach(speaker => {
+            this.emitParticipantUpdate(speaker);
+        });
+    };
+
+    private handleReconnecting = () => {
+        this.emit("reconnecting", undefined);
+    };
+
+    private handleReconnected = () => {
+        this.emit("reconnected", undefined);
+    };
+
+    private handleDisconnected = () => {
+        // remote participants are gone with the room, drop them so the UI does
+        // not keep rendering cards for participants that already left
+        this.room.remoteParticipants.forEach(participant => {
+            this.emit("participantLeft", {
+                sid: participant.sid,
+            });
+        });
+        this.emit("disconnected", undefined);
+    };
+
+    private handleMediaDevicesError = (error: Error) => {
+        console.error("LIVEKIT: media devices error", error);
     };
 
     async connect(connection: SessionConnection): Promise<string>{
@@ -221,46 +409,41 @@ export class LivekitProvider
             isLocal: true,
         });
 
-        // emit event for already joined participants
-        this.room.remoteParticipants.forEach(
-            participant => {
-                this.handleParticipantConnected(participant);
-                participant.trackPublications.forEach(pub => {
-                if (pub.isSubscribed && pub.track) {
-                    this.handleTrackSubscribed(
-                        pub.track as RemoteTrack,
-                        pub as RemoteTrackPublication,
-                        participant,
-                    );
-                }
-            });
+        // emit event for participants that were already in the room, they never
+        // produce a future ParticipantConnected event
+        this.room.remoteParticipants.forEach(participant => {
+            this.handleParticipantConnected(participant);
+        });
 
-            }
-        )
         return this.room.name;
     };
 
     async disconnect(): Promise<void> {
+        // RoomEvent.Disconnected is emitted by LiveKit itself and drives the
+        // `disconnected` event, so we must not emit it twice
         await this.room.disconnect();
-
-        this.emit("disconnected", undefined);
     };
 
     async enableCamera() : Promise<void>{
         await this.room.localParticipant.setCameraEnabled(true);
+        this.emitParticipantUpdate(this.room.localParticipant);
     };
 
     async disableCamera(): Promise<void> {
         await this.room.localParticipant.setCameraEnabled(false);
+        this.emitParticipantUpdate(this.room.localParticipant);
     }
 
     async enableMicrophone(): Promise<void> {
         await this.room.localParticipant.setMicrophoneEnabled(true);
+        this.emitParticipantUpdate(this.room.localParticipant);
     }
 
     async disableMicrophone(): Promise<void> {
         await this.room.localParticipant.setMicrophoneEnabled(false);
+        this.emitParticipantUpdate(this.room.localParticipant);
     }
+
     async startAudio() {
         await this.room.startAudio();
     }

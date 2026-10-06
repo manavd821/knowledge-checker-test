@@ -2,6 +2,10 @@ import { InterviewSessionManager } from "@/interview-session/interview-session-m
 import { get_realtime_provider } from "@/rtc/provider/factory";
 import { get_message_router } from "@/messaging/factory";
 import { participant_store, transcript_store } from "@/store/factory";
+import {
+    connection_store,
+    live_session_store,
+} from "@/store/factory";
 import { get_connection_service } from "@/connection/factory";
 import { get_provider_event_router } from "@/rtc/events/factory";
 import { get_frontend_service } from "@/frontend/factory";
@@ -26,6 +30,8 @@ export const createInterviewSession = () => {
         frontend_services.sessions,
         frontend_services.users,
         provider_event_router,
+        connection_store,
+        live_session_store,
     );
     
 }

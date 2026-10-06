@@ -18,6 +18,20 @@ export class ParticipantStore extends ObservableStore<ParticipantState>{
             local: participant
         }));
     }
+    update_local_participant(update: Partial<LocalParticipantVM>){
+        this.set(prev => {
+            if(!prev.local){
+                return prev;
+            }
+            return {
+                ...prev,
+                local: {
+                    ...prev.local,
+                    ...update,
+                },
+            };
+        });
+    }
     add_remote_participant(participant: ParticipantVM){
         this.set(prev => {
             const remote = new Map(prev.remote);

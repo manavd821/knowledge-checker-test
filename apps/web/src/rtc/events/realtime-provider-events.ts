@@ -6,12 +6,26 @@ export interface RealtimeProviderEvents{
 
     disconnected: void;
 
+    /** transport is temporarily lost, LiveKit is retrying on its own */
+    reconnecting: void;
+
+    /** transport recovered, the room object stays valid */
+    reconnected: void;
+
     participantJoined: {
         participant : ParticipantVM;
         isLocal: boolean;
     }
     participantLeft: {
         sid: string;
+    };
+    /**
+     * Media / identity state of a participant changed without a join or leave.
+     * (mic or camera toggled, participant started or stopped speaking)
+     */
+    participantUpdated: {
+        participant: ParticipantVM;
+        isLocal: boolean;
     };
     dataReceived: {
         message: DataChannelMessage;

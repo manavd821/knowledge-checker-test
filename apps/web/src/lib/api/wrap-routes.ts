@@ -3,9 +3,11 @@ import { request_context } from "@/lib/logging/request-contexts";
 import { Logger } from "@/lib/logging/logger";
 import { AppError } from "@/exceptions/AppError";
 
-export async function withRequestContextAndErrorHandling<TContext>
+// must stay synchronous: it returns the route handler itself, an `async`
+// declaration would wrap it in a promise and break the route contract
+export function withRequestContextAndErrorHandling<TContext>
     (handler : (
-        req : NextRequest,
+        req : NextRequest, 
         context : TContext,
     ) => Promise<Response>) {
     return async (

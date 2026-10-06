@@ -15,6 +15,9 @@ export const useInterviewIntialization = (
         queryFn : async () => {
             return await manager.join(session_id);
         },
+        // joining has side effects (a session connection row is created), a
+        // silent retry would create several of them
+        retry: false,
         staleTime: Infinity,
     })
 }

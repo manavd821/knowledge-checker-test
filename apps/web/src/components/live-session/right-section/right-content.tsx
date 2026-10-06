@@ -1,34 +1,15 @@
-import { Button } from "@/components/ui/button";
-import { SidebarContent } from "@/components/ui/sidebar";
-import { useLiveSessionInfo } from "@/react/live-session/hooks/use-live-session-info";
-import { useSessionID } from "@/react/live-session/hooks/use-session-id";
-import { useSessionManager } from "@/react/live-session/hooks/use-session-manager";
-import { useRouter } from "next/navigation";
+"use client";
+import { InterviewTranscript } from "@/components/live-session/interview-transcript";
 
+/**
+ * Body of the right sidebar: the live transcript panel only.
+ * Entries come from the TranscriptStore over the data channel, there is no
+ * local transcript state and no polling.
+ */
 export function RightContent(){
-    const manager = useSessionManager();
-    const session_id = useSessionID();
-    const {
-        status
-    } = useLiveSessionInfo();
-    const router = useRouter();
-    const handlePause = async () => {
-        try {
-            await manager.pause(session_id);
-            router.replace('/dashboard');
-        } catch (error) {
-            console.error("Failed to pause session:", error);
-        }
-    }
     return (
-        <SidebarContent>
-            <Button
-            onClick={handlePause}
-            disabled={status !== "active"}
-            >Pause</Button>
-            
-            <div>Sidebar header</div>
-            <div>Sidebar content</div>
-        </SidebarContent>
-    )
+        <div className="flex min-h-0 flex-1 flex-col p-4">
+            <InterviewTranscript/>
+        </div>
+    );
 }

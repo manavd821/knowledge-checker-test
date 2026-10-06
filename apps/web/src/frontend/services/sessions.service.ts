@@ -38,6 +38,24 @@ export class SessionService{
     set_live_session_info(session_id: string, data: LiveSessionInfo){
         this.session_cache.set_live_session_info(session_id, data);
     }
+    /**
+     * Re-reads the session from the backend and replaces the cache entry.
+     * Used after a lifecycle mutation (pause / resume) so the client timer keeps
+     * following the authoritative `actual_duration_sec` / `active_since` values
+     * instead of guessing them locally.
+     */
+    async refresh_live_session_info(session_id: string): Promise<LiveSessionInfo>{
+        const res = await this.connection_service.get_session(session_id);
+        if(!res.success){
+            throw new Error(res.message, {
+                cause: {
+                    ...res,
+                },
+            });
+        }
+        this.set_live_session_info(session_id, res.data);
+        return res.data;
+    }
     async create_session(data: SessionForm) : Promise<string>{
         // convert into form data
         const formData = new FormData();

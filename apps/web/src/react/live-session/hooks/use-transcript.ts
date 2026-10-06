@@ -7,5 +7,6 @@ export const useTranscript = () => {
     return useSyncExternalStore(
         store.subscribe,
         store.getSnapShot,
+        store.getSnapShot,
     );
 };

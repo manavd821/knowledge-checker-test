@@ -83,11 +83,13 @@ class InterviewAgent(Agent):
         self,
         response: str,
     ):
+        # this transcript is the agent's own speech, not the candidate's turn,
+        # so it must be attributed to the AI role
         payload = TranscriptPayload(
             session_id = self.session_id,
             participant_id = self.participant_id,
             transcript = response,
-            role = self._room_metadata.role
+            role = "ai"
         )
         await self._message_publisher.publish(DataChannelMesage(
             type=MessageType.TRANSCRIPT,

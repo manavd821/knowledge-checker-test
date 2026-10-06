@@ -1,47 +1,34 @@
-import { SidebarHeader, SidebarTrigger } from "@/components/ui/sidebar";
-import { SessionMetaCard } from "@/components/live-session/left-section/session-meta-card";
-import { ProgressBar } from "@/components/live-session/left-section/progress-bar";
-import { UserAvtar } from "@/components/live-session/left-section/user-avtar";
-import { DIFFICULTY_META, DOMAIN_META, TOPIC_TYPE_META } from "@/react/session-form/sessions.meta";
-import { useUser } from "@/react/users/hooks/use-user";
+"use client";
 import { useLiveSessionInfo } from "@/react/live-session/hooks/use-live-session-info";
+import {
+    DOMAIN_META,
+    TOPIC_TYPE_META,
+} from "@/react/session-form/sessions.meta";
 
+/**
+ * Top block of the left sidebar: the identity of the open session.
+ * (The application header lives in `SessionHeader`, never here.)
+ */
 export function LeftHeader(){
 
-    const user = useUser();
     const session = useLiveSessionInfo();
+
+    const domain_label =
+        session.domain === "custom" && session.custom_domain
+            ? session.custom_domain
+            : DOMAIN_META[session.domain].label;
+
     return (
-        <SidebarHeader>
-            <div
-            className="flex justify-between"
-            >
-                <p>SESSION</p>
-                <SidebarTrigger/>
-            </div>
-            <div
-            className="flex gap-2"
-            >
-                <UserAvtar name="MD"/>
-                <div>
-                    <p>{user.first_name ?? ""} {user.last_name ?? ""}</p>
-                    <p
-                    className="text-sm text-muted-foreground"
-                    >{DOMAIN_META[session.domain].label}</p>
-                </div>
-            </div>
-            <div
-            className="flex items-center gap-2"
-            >
-                <SessionMetaCard
-                title="Type"
-                label={TOPIC_TYPE_META[session.topic_type].label}
-                />
-                <SessionMetaCard
-                title="Difficulty"
-                label={DIFFICULTY_META[session.difficulty].label}
-                />
-            </div>
-            <ProgressBar/>
-        </SidebarHeader>
+        <div className="flex flex-col gap-1 border-b p-4">
+            <p className="text-xs font-medium text-muted-foreground">
+                SESSION
+            </p>
+            <p className="truncate text-sm font-semibold">
+                {TOPIC_TYPE_META[session.topic_type].label}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+                {domain_label}
+            </p>
+        </div>
     )
 }

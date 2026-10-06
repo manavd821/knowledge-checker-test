@@ -1,29 +1,17 @@
-import { Sidebar, useSidebar } from "@/components/ui/sidebar";
-import { CollapsedSidebar } from "./collapsed-sidebar";
+"use client";
 import { RightContent } from "@/components/live-session/right-section/right-content";
-import { RightHeader } from "../right-section/right-header";
 
+/**
+ * Right sidebar: the live transcript only (plain flex column, never overlaps
+ * the header). The list inside scrolls on its own.
+ */
 export function RightSidebar(){
-    const { state } = useSidebar();
     return (
-            <Sidebar
-            side="right"
-            collapsible="icon"
-            >
-                {
-                    state === "collapsed"
-                    ? (
-                        <CollapsedSidebar side="right"/>
-                    )
-                    : (
-                        <>
-                        <RightHeader
-                        side="right"
-                        />
-                        <RightContent/>
-                        </>
-                    )
-                }
-            </Sidebar>
-    )
+        <aside
+        data-testid="right-sidebar"
+        className="flex w-96 shrink-0 flex-col overflow-hidden border-l bg-background"
+        >
+            <RightContent/>
+        </aside>
+    );
 }

@@ -72,6 +72,22 @@ export class SessionParticipantsService{
         })
     }
 
+    /**
+     * Records that the participant left the session. The connection itself is
+     * tracked separately by SessionConnectionsService, this only owns the
+     * participant level bookkeeping.
+     */
+    async mark_participant_left(
+        participant_id: string,
+        duration_sec: number,
+        left_at: Date = new Date(),
+    ){
+        await this.session_participants_repo.update(participant_id, {
+            left_session_at: left_at,
+            completed_duration_sec: duration_sec,
+        });
+    }
+
     async create_multiple_participants(
         data: CreateSessionParticipants[],
     ) : Promise<string[]>{

@@ -27,9 +27,12 @@ export class MessageRouter{
         // }
         const handler = this.handlers.get(message.type);
         if(!handler){
-            throw new ConfigurationError(
-                `handler not found for type: ${message.type}`,
+            // the AI can publish message types this client does not implement
+            // yet (eg. "hint"); ignoring them keeps the data channel alive
+            console.warn(
+                `No handler registered for message type: ${message.type}. Ignoring.`
             );
+            return;
         }
         handler.handle(message.payload);
     }   
