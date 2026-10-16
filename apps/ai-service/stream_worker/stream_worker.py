@@ -1,10 +1,11 @@
-from lib.logging.logging import get_logger
+import structlog
+
 from lib.redis.stream.base import IRedisStream
 from stream_worker.stream_event_router import StreamEventRouter
 from stream_worker.stream_events import StreamEvent
 from stream_worker.stream_event_registry import StreamEventRegistry
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 class RedisStreamWorker:
     def __init__(

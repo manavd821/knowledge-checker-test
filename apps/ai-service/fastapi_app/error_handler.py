@@ -1,47 +1,53 @@
 from fastapi import Request
-from exceptions.AppError import AppError
 from fastapi.responses import JSONResponse
-from fastapi_app.bootstrap.utils import get_status_code
-from lib.logging.logging import get_logger
+from starlette.exceptions import HTTPException as StarletteHTTPException
+import structlog
 
-logger = get_logger(__name__)
+from exceptions.AppError import AppError
 
-async def global_exception_handler(request : Request, exc):
-    if isinstance(exc, AppError):
-        status_code = get_status_code(exc)
-        payload = {
-            "code" : exc.code,
-            "status_code" : status_code,
-        }
-        if exc.expose:
-            payload["details"] = exc.details
-            payload["message"] = exc.message
-            logger.info(
-                f"client error: {str(exc)}",
-                error = exc.message,
-                error_type = type(exc).__name__,
-            )
-        else: # server error
-            logger.error(
-                f"server error: {str(exc)}",
-                error = exc.message,
-                error_type = type(exc).__name__,
-            )
-        
-        return JSONResponse(
-            payload,
-            status_code=status_code
+logger = structlog.get_logger(__name__)
+
+GENERIC_ERROR = {
+    "code": "INTERNAL_SERVER_ERROR",
+    "message": "something went wrong. Please try again later",
+}
+
+_LOG_LEVELS = {
+    "DEBUG": "debug",
+    "INFO": "info",
+    "WARN": "warning",
+    "ERROR": "error",
+    "FATAL": "critical",
+}
+
+
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    log = getattr(logger, _LOG_LEVELS.get(exc.log_level, "error"))
+    if exc.status_code >= 500:
+        logger.error(
+            "http exception",
+            status_code=exc.status_code,
+            error_type=type(exc).__name__,
         )
-    
-    logger.critical(
-        f"unhandled error: {str(exc)}",
-        error = str(exc),
-        error_type = type(exc).__name__,
-    )
+        return JSONResponse(GENERIC_ERROR, status_code=exc.status_code)
+
+    log(
+            "application error",
+            code=str(exc.code),
+            status_code=exc.status_code,
+            error_type=type(exc).__name__,
+        )
     return JSONResponse(
-        {
-            "code" : "INTERNAL_SERVER_ERROR",
-            "message" : "something went wrong. Please try again later",
-        },
-        status_code=500,
+        {"detail": exc.cause},
+        status_code=exc.status_code,
+        headers=getattr(exc, "headers", None),
     )
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.critical(
+        "unhandled error",
+        error=str(exc),
+        error_type=type(exc).__name__,
+    )
+    return JSONResponse(GENERIC_ERROR, status_code=500)

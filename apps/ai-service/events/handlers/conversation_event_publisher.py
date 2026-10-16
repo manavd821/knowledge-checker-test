@@ -1,13 +1,13 @@
 from pydantic import BaseModel
+import structlog
 
 from events.enums import HandlerPolicy, LiveSessionEvent
 from events.handlers.base import IEventHandler
-from lib.logging.logging import get_logger
 from lib.redis.stream.base import IRedisStream
 from stream_worker.stream_events import StreamEvent
 from stream_worker.enums import CONVERSATION_STREAM_KEY
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 class ConversationEventPublisher(IEventHandler):
 
     def __init__(

@@ -1,10 +1,10 @@
 from langchain_core.messages.utils import count_tokens_approximately
+import structlog
 
-from lib.logging.logging import get_logger
 from llm.enums import Tasks
 from llm.gateway import LLMGateway
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 class TokenService:
     def __init__(

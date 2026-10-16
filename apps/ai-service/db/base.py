@@ -1,5 +1,5 @@
 from typing import AsyncGenerator
-from sqlalchemy import NullPool, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     create_async_engine, 
     async_sessionmaker,
@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
 )
 from contextlib import asynccontextmanager
-from lib.logging.logging import get_logger
 
-logger = get_logger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 class Database:
     """Holds the Neon Postgresql connection. One instance for the app"""

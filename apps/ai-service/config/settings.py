@@ -1,12 +1,12 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
+import structlog
 
-from lib.logging.logging import get_logger
 
 load_dotenv()
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 class Settings(BaseSettings):
     DATABASE_URL : str

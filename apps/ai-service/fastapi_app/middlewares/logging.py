@@ -1,33 +1,19 @@
-from infrastructure import get_logger
-from fastapi import Request, Response
-import structlog
 import uuid
-import time
 
-logger = get_logger(__name__)
+import structlog
+from fastapi import Request, Response
 
-async def logging_middlware(req : Request, call_next):
+
+async def request_id_middleware(request: Request, call_next) -> Response:
     structlog.contextvars.clear_contextvars()
-    
-    req_id = req.headers.get("X-Request-ID", str(uuid.uuid4()))
-    
-    structlog.contextvars.bind_contextvars(
-        req_id = req_id,
-        http_method=req.method,
-        path = req.url.path,
-    )
-    start = time.perf_counter()
+
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    structlog.contextvars.bind_contextvars(req_id=request_id)
+
     try:
-        response : Response = await call_next(req)
-    except Exception:
-        logger.exception("request_failed")
-        raise
-    
-    duration_ms = round((time.perf_counter() - start) * 1000, 2)
-    logger.info(
-        "request completed",
-        status_code=response.status_code,
-        duration_ms=duration_ms,
-    ) 
-    response.headers["X-Request-ID"] = req_id
+        response: Response = await call_next(request)
+    finally:
+        structlog.contextvars.clear_contextvars()
+
+    response.headers["X-Request-ID"] = request_id
     return response

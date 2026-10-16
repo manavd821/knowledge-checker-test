@@ -6,14 +6,14 @@ from livekit.agents import (
     ChatMessage,
     StopResponse,
 )
+import structlog
 from interview.models import UserTurnCompletedPayload
-from lib.logging.logging import get_logger
 from livekit_worker.interview_agent_registry import InterviewAgentRegistry
 from livekit_worker.message_publisher import RealtimeMessagePublisher
 from livekit_worker.models import DataChannelMesage, MessageType, ParticipantMetadata, TranscriptPayload
 from interview.factory import get_interview_coordinator
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 class InterviewAgent(Agent):
     def __init__(

@@ -2,10 +2,10 @@ import asyncio
 from uuid import UUID
 import uuid
 from pydantic import BaseModel
+import structlog
 from events.enums import HandlerPolicy, LiveSessionEvent
 from events.handlers.base import IEventHandler
 from graph.graph_selector import GraphSelector
-from lib.logging.logging import get_logger
 from models.graph_result import GraphResult
 from models.graph_state import InterviewGraphState
 from models.sessions import SessionContext
@@ -27,7 +27,7 @@ from events.models import (
     SessionExecutionState, 
     SessionRuntimeContextUpdate,
 )
-logger = get_logger(__name__)
+logger = structlog.get_logger()
 
 class SessionProcessor(IEventHandler):
 

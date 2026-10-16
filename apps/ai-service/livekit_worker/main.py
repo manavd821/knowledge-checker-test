@@ -2,14 +2,14 @@ import os
 
 from livekit import agents
 from livekit.agents import WorkerOptions
+import structlog
 from config.settings import get_settings
-from lib.logging.logging import get_logger
 from livekit_worker.entrypoint import entrypoint
 from dotenv import load_dotenv
 
 
 load_dotenv()
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 if __name__ == "__main__":
     settings = get_settings()

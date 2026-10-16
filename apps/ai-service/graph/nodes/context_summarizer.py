@@ -1,13 +1,14 @@
 from typing import Any
 
-from lib.logging.logging import get_logger
+import structlog
+
 from models.graph_state import (
     InterviewGraphState,
 )
 from services.context_service import ContextService
 from services.token_service import TokenService
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ContextSummerizerNode:
     def __init__(

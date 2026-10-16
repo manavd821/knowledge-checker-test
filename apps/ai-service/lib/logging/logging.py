@@ -37,6 +37,3 @@ def configure_logging(
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True
     )
-
-def get_logger(name : str | None):
-    return structlog.get_logger(name)

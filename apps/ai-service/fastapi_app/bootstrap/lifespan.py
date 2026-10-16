@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from lib.logging.logging import get_logger
+import structlog
+from config.settings import get_settings
+from lib.logging.logging import configure_logging
 
 
 @asynccontextmanager 
 async def lifespan(app : FastAPI):
-    # await init_infra()
-    logger = get_logger(__name__)
+    configure_logging()
+    get_settings()
+    logger = structlog.get_logger(__name__)
     logger.info(f"fastapi service started", service = "knowledge-checker-ai-service")
     yield
     logger.info(f"fastapi service shutting down", service = "knowledge-checker-ai-service")

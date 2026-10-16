@@ -1,11 +1,11 @@
 from pydantic import BaseModel
+import structlog
 from models.turns import CreateTurn
 from stream_worker.handlers.base import IStreamEventHandler
 from stream_worker.payloads import CreateTurnEventPayload
 from services.turn_service import TurnService
-from lib.logging.logging import get_logger
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 class CreateTurnHandler(IStreamEventHandler):
     
     def __init__(

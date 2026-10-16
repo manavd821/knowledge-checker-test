@@ -1,15 +1,16 @@
 import asyncio
 
+import structlog
+
 from execution_profile.enums import ExecutionProfile
 from execution_profile.provider.graph import GraphProvider
 from graph.enums import GraphType
 from graph.graph_registry import GraphRegistry
-from lib.logging.logging import get_logger
 from models.graph_result import GraphResult
 from models.graph_state import InterviewGraphState
 from langgraph.graph.state import CompiledStateGraph
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 class GraphRuntime:
     def __init__(
         self,

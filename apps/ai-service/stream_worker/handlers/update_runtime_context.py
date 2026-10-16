@@ -1,10 +1,10 @@
 from pydantic import BaseModel
+import structlog
 from events.payloads import RuntimeContextUpdated
 from services.session_runtime_context import SessionRuntimeContextService
 from stream_worker.handlers.base import IStreamEventHandler
-from lib.logging.logging import get_logger
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 class UpdateRuntimeContextHandler(IStreamEventHandler):
     
     def __init__(

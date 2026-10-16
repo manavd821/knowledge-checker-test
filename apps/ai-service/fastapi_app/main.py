@@ -16,6 +16,10 @@ app = create_app()
 @app.get('/')
 async def home():
     return "hello"
+
+@app.get('/health')
+async def health():
+    return {"status": "ok"}
 class Evaluation(BaseModel):
     model_config = ConfigDict(
         use_enum_values=True,
@@ -28,16 +32,6 @@ class Evaluation(BaseModel):
     answer : str
     active_context : str
 
-@app.post('/test')
-async def test_evaluate_turn(
-    evaluation : Evaluation,
-    ):
-    llm_gateway = get_llm_gateway(ExecutionProfile.BALANCED)
-    evaluation_service = EvaluationService(llm_gateway)
-    res = await evaluation_service.evaluate_turn(**evaluation.model_dump())
-    print(type(res))
-    print(res)
-    return res
 
 class Question(BaseModel):
     topic_type : TopicType | None

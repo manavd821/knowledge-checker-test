@@ -1,12 +1,12 @@
 from pydantic import BaseModel
+import structlog
 
 from events.enums import HandlerPolicy, LiveSessionEvent
 from events.handlers.base import IEventHandler
 from events.payloads import InterviewerResponseReady
-from lib.logging.logging import get_logger
 from livekit_worker.interview_agent_registry import InterviewAgentRegistry
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 class InterviewerResponseReadyHandler(IEventHandler):
         
     @property 

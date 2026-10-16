@@ -11,14 +11,16 @@ from livekit.plugins import (
     cartesia,
 )
 from livekit.rtc import RemoteParticipant
-from lib.logging.logging import get_logger
+import structlog
+from lib.logging.logging import configure_logging
 from livekit_worker.agent import InterviewAgent
 from livekit_worker.lifespan import clean_up
 from livekit_worker.message_publisher import RealtimeMessagePublisher
 from livekit_worker.models import ParticipantMetadata
 
 
-logger = get_logger(__name__)
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 async def entrypoint(ctx : JobContext):
     ctx.add_shutdown_callback(clean_up)
