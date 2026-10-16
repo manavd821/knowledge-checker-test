@@ -82,9 +82,14 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
 
     const { session, turns, evaluation_summary } = data;
 
+    // Source of truth: the persisted session-level evaluation summary. The
+    // nullable `sessions.overall_score` column is only a defensive fallback -
+    // nothing is ever computed or invented in the client.
     const overall_score =
-        evaluation_summary?.overall_score ?? session.overall_score;
-    const ai_insight = evaluation_summary?.detailed_feedback;
+        evaluation_summary?.overall_score ?? session.overall_score ?? null;
+    const overall_feedback = evaluation_summary?.detailed_feedback ?? null;
+    const has_overall_evaluation =
+        overall_score !== null || !!overall_feedback;
     const domain_label =
         session.domain === "custom" && session.custom_domain
             ? session.custom_domain
@@ -119,12 +124,6 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
             value: format_date(session.created_at),
         },
     ];
-    if (typeof overall_score === "number") {
-        summary_rows.push({
-            label: "Overall score",
-            value: `${overall_score}/10`,
-        });
-    }
 
     return (
         <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:py-8">
@@ -160,17 +159,39 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
                 ))}
             </dl>
 
-            {ai_insight && (
-                <>
-                    <Separator className="my-6" />
-                    <section>
-                        <h2 className="text-lg font-semibold">AI Insight</h2>
-                        <p className="mt-2 break-words rounded-lg border bg-card p-4 text-sm leading-relaxed">
-                            {ai_insight}
-                        </p>
-                    </section>
-                </>
-            )}
+            <Separator className="my-6" />
+
+            <section data-testid="overall-evaluation">
+                <h2 className="text-lg font-semibold">Overall Evaluation</h2>
+                {has_overall_evaluation ? (
+                    <div className="mt-2 space-y-3 rounded-lg border bg-card p-4">
+                        {overall_score !== null && (
+                            <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                    Overall score:{" "}
+                                </span>
+                                <span className="font-semibold">
+                                    {overall_score}/10
+                                </span>
+                            </p>
+                        )}
+                        {overall_feedback && (
+                            <div>
+                                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                    Overall Feedback
+                                </p>
+                                <p className="mt-1 break-words text-sm leading-relaxed">
+                                    {overall_feedback}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <p className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+                        Overall evaluation is not available for this session.
+                    </p>
+                )}
+            </section>
 
             <Separator className="my-6" />
 
@@ -207,6 +228,9 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
                                     <p className="text-sm font-medium">
                                         {speaker_label}
                                     </p>
+                                    <span className="ml-auto text-xs text-muted-foreground">
+                                        Turn {turn.turn_number}
+                                    </span>
                                 </div>
 
                                 <p className="mt-2 break-words text-sm leading-relaxed">
@@ -214,7 +238,7 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
                                 </p>
 
                                 {(turn.evaluation_score !== null ||
-                                    turn.evaluation_feedback) && (
+                                    turn.evaluation_feedback) ? (
                                     <div className="mt-3 space-y-1 border-t pt-2 text-xs">
                                         {turn.evaluation_score !== null && (
                                             <p className="text-muted-foreground">
@@ -231,6 +255,10 @@ export function SessionDetailsPage({ session_id }: { session_id: string }){
                                             </p>
                                         )}
                                     </div>
+                                ) : (
+                                    <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+                                        Not evaluated
+                                    </p>
                                 )}
                             </div>
                         );

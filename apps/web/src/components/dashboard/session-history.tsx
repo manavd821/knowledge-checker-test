@@ -123,6 +123,25 @@ function SessionCard({ session }: { session: SessionSummary }){
                 )}
             </div>
 
+            {(session.evaluation_overall_score !== null ||
+                session.evaluation_feedback) && (
+                <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs">
+                    {session.evaluation_overall_score !== null && (
+                        <p className="text-muted-foreground">
+                            Overall score:{" "}
+                            <span className="font-medium text-foreground">
+                                {session.evaluation_overall_score}/10
+                            </span>
+                        </p>
+                    )}
+                    {session.evaluation_feedback && (
+                        <p className="mt-1 break-words text-muted-foreground">
+                            {session.evaluation_feedback}
+                        </p>
+                    )}
+                </div>
+            )}
+
             <div className="mt-4 flex flex-wrap items-center gap-3">
                 {can_resume && (
                     <Button

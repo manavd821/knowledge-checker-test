@@ -43,6 +43,13 @@ export const GET = withRequestContextAndErrorHandling(async (
             duration_minutes: session.duration_minutes,
             status: session.status,
             overall_score: session.overall_score,
+            // Same persisted session-level evaluation as the dashboard list,
+            // surfaced on the summary so the results header can show it even
+            // without expanding turns.
+            evaluation_overall_score:
+                evaluation_summary?.overall_score ?? null,
+            evaluation_feedback:
+                evaluation_summary?.detailed_feedback ?? null,
             total_turns: session.total_turns,
             scheduled_at: session.scheduled_at.toISOString(),
             started_at: session.started_at?.toISOString() ?? null,

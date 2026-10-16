@@ -9,6 +9,7 @@ import { ARRAY_FIELD } from "@/shared/enums";
 import { SessionForm } from "@/react/session-form/session-form.types";
 import { PauseSession } from "@/shared/dto/sessions/pause-session.dto";
 import { ResumeSession } from "@/shared/dto/sessions/resume-session.dto";
+import { EndSession } from "@/shared/dto/sessions/end-session.dto";
 
 export class SessionService{
     constructor(
@@ -128,6 +129,17 @@ export class SessionService{
             });
         }
 
+        return res.data;
+    }
+    async end_session(session_id: string): Promise<EndSession> {
+        const res = await this.connection_service.end_session(session_id);
+        if(!res.success){
+            throw new Error(res.message, {
+                cause: {
+                    ...res,
+                },
+            });
+        }
         return res.data;
     }
     async list_sessions(): Promise<SessionSummary[]>{

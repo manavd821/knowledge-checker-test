@@ -4,6 +4,7 @@ import { CreateSessionResponse, CreateSessionResponseSchema } from "@/shared/dto
 import { GetSessionResponse, GetSessionResponseSchema } from "@/shared/dto/sessions/get-session.dto";
 import { PauseSessionResponse, PauseSessionResponseSchema } from "@/shared/dto/sessions/pause-session.dto";
 import { ResumeSessionResponse, ResumeSessionResponseSchema } from "@/shared/dto/sessions/resume-session.dto";
+import { EndSessionResponse, EndSessionResponseSchema } from "@/shared/dto/sessions/end-session.dto";
 import { ListSessionsResponse, ListSessionsResponseSchema } from "@/shared/dto/sessions/list-sessions.dto";
 import { GetSessionDetailsResponse, GetSessionDetailsResponseSchema } from "@/shared/dto/sessions/session-details.dto";
 import { GetUserResponse, GetUserResponseSchema } from "@/shared/dto/users/get-user.dto";
@@ -47,6 +48,20 @@ export class ConnectionService{
 
         const data = await res.json();
         const z_res = ResumeSessionResponseSchema.parse(data);
+        return z_res;
+    }
+    async end_session(
+        session_id: string
+    ): Promise<EndSessionResponse> {
+        const res = await fetch(
+            `/api/v1/sessions/${session_id}/end`,
+            {
+                method: "POST",
+            }
+        );
+
+        const data = await res.json();
+        const z_res = EndSessionResponseSchema.parse(data);
         return z_res;
     }
 

@@ -272,6 +272,10 @@ export const SessionSummarySchema = z.object({
     duration_minutes: z.number(),
     status: z.enum(STATUS),
     overall_score: z.number().nullable(),
+    // Persisted session-level evaluation merged from `evaluation_summaries`
+    // (never computed in the client). Null until a summary exists.
+    evaluation_overall_score: z.number().nullable(),
+    evaluation_feedback: z.string().nullable(),
     total_turns: z.number().nullable(),
     scheduled_at: z.iso.datetime(),
     started_at: z.iso.datetime().nullable(),

@@ -150,12 +150,25 @@ export class SessionService{
         const elapsedSeconds = Math.floor(
             (now.getTime() - session.active_since!.getTime()) / 1000
         );
-        await this.session_repo.update(session_id, {
-            status: "pause",
-            actual_duration_sec:
-                (session.actual_duration_sec ?? 0) + elapsedSeconds,
-            active_since: null,
-        });
+        // Compare-and-set on `active`: a concurrent completion must win, so a
+        // stale pause can never resurrect a completed session.
+        const updated = await this.session_repo.update_if_status(
+            session_id,
+            ["active"],
+            {
+                status: "pause",
+                actual_duration_sec:
+                    (session.actual_duration_sec ?? 0) + elapsedSeconds,
+                active_since: null,
+            },
+        );
+        if (!updated) {
+            throw new ConflictError(
+                "Session is not active",
+                "session",
+                "session status changed while pausing.",
+            );
+        }
     }
     async resumeSession(
         session_id: string,
@@ -178,11 +191,106 @@ export class SessionService{
 
         const now = new Date();
 
-        await this.session_repo.update(session_id, {
-            status: "active",
-            active_since: now,
-        });
+        // Compare-and-set on `pause`: `completed` is terminal, so a stale
+        // resume can neither complete nor reactivate it.
+        const updated = await this.session_repo.update_if_status(
+            session_id,
+            ["pause"],
+            {
+                status: "active",
+                active_since: now,
+            },
+        );
+        if (!updated) {
+            throw new ConflictError(
+                "Session is not paused",
+                "session",
+                "session status changed while resuming.",
+            );
+        }
     }
+
+    /**
+     * Terminally completes a session.
+     *
+     * `active -> completed` and `pause -> completed` are both allowed: for an
+     * active session the still-running `active_since` slice is folded into the
+     * accumulated `actual_duration_sec` first, so the final recorded duration
+     * is never under-counted. The transition is a compare-and-set on
+     * `["active", "pause"]`, which makes `completed` terminal: a late pause /
+     * resume / LiveKit webhook that read an older status cannot overwrite it,
+     * and ending an already-completed session is an idempotent success.
+     */
+    async endSession(
+        session_id: string,
+        user_id: string,
+    ): Promise<SelectSession>{
+        const {
+            session,
+        } = await this.assert_can_control_session(
+            session_id,
+            user_id
+        );
+
+        // completed is terminal: ending again is an idempotent success that
+        // reports the authoritative persisted row, never an error.
+        if (session.status === "completed") {
+            return session;
+        }
+
+        if (session.status !== "active" && session.status !== "pause") {
+            throw new ConflictError(
+                `Cannot end a session with status '${session.status}'`,
+                "session",
+                `session status must be active or pause to be completed.`,
+            );
+        }
+
+        const now = new Date();
+
+        // only an active session holds unaccounted time in `active_since`
+        let actual_duration_sec = session.actual_duration_sec ?? 0;
+        if (session.status === "active" && session.active_since) {
+            const elapsedSeconds = Math.floor(
+                (now.getTime() - session.active_since.getTime()) / 1000
+            );
+            actual_duration_sec = actual_duration_sec + elapsedSeconds;
+        }
+
+        const updated = await this.session_repo.update_if_status(
+            session_id,
+            ["active", "pause"],
+            {
+                status: "completed",
+                active_since: null,
+                ended_at: now,
+                actual_duration_sec,
+            },
+        );
+
+        if (updated) {
+            logger.info("Session completed", {
+                session_id,
+                user_id,
+                actual_duration_sec,
+            });
+            return updated;
+        }
+
+        // CAS miss: a concurrent transition won the race. If it completed the
+        // session that is exactly the terminal state we wanted, so report it;
+        // otherwise surface the conflict instead of silently retrying.
+        const latest = await this.session_repo.get_by_session_id(session_id);
+        if (latest?.status === "completed") {
+            return latest;
+        }
+        throw new ConflictError(
+            `Cannot end a session with status '${latest?.status ?? "unknown"}'`,
+            "session",
+            `session status changed while completing.`,
+        );
+    }
+
     async update_session_status(session_id : string, status: Status) : Promise<void>{
         await this.session_repo.update_status(session_id, status);
     }
@@ -222,7 +330,21 @@ export class SessionService{
         }
         const now = new Date();
         if(session_data.status != "active"){
-            await this.session_repo.update_status(session_id, "active")
+            // Compare-and-set so a join can never reactivate a session that
+            // reached a terminal state (`completed`) between the validation
+            // read and this write.
+            const activated = await this.session_repo.update_if_status(
+                session_id,
+                ["preparing", "ready", "pause"],
+                { status: "active" },
+            );
+            if(!activated){
+                throw new ConflictError(
+                    `Cannot activate a session with status '${session_data.status}'`,
+                    "session",
+                    `session status must not be completed to become active.`,
+                );
+            }
             session_data.status = "active";
             become_active = true;
             logger.info("Session status updated to active", {session_id});
@@ -278,15 +400,20 @@ export class SessionService{
             (now.getTime() -
                 session.active_since.getTime()) / 1000,
         );
-        await this.session_repo.update(session_id, {
-            status: "pause",
-            actual_duration_sec:
-                (session.actual_duration_sec ?? 0) +
-                elapsedSeconds,
-            active_since: null,
-        });
-
-
+        // Compare-and-set and deliberately ignore the result: a late
+        // participant_left webhook arriving after the session was completed
+        // must be a no-op, never flip `completed` back to `pause`.
+        await this.session_repo.update_if_status(
+            session_id,
+            ["active"],
+            {
+                status: "pause",
+                actual_duration_sec:
+                    (session.actual_duration_sec ?? 0) +
+                    elapsedSeconds,
+                active_since: null,
+            },
+        );
     }
 
     async assert_can_control_session(
@@ -332,7 +459,30 @@ export class SessionService{
      * insights) never travel here.
      */
     async list_sessions_for_user(user_id: string){
-        return this.session_repo.list_by_user(user_id);
+        const sessions = await this.session_repo.list_by_user(user_id);
+        if (sessions.length === 0) {
+            return [];
+        }
+        // One aggregated read, no N+1: the persisted session-level evaluation
+        // (overall score + detailed feedback) is merged onto the lean history
+        // projection so the dashboard can show real results, never fabricated
+        // ones.
+        const summaries = await this.evaluation_summary_repo
+            .get_by_session_ids(sessions.map((s) => s.session_id));
+        const summary_by_session_id = new Map(
+            summaries.map((summary) => [
+                summary.session_id,
+                summary,
+            ]),
+        );
+        return sessions.map((session) => {
+            const summary = summary_by_session_id.get(session.session_id);
+            return {
+                ...session,
+                evaluation_overall_score: summary?.overall_score ?? null,
+                evaluation_feedback: summary?.detailed_feedback ?? null,
+            };
+        });
     }
 
     /**

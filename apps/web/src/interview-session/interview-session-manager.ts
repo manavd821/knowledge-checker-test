@@ -224,6 +224,20 @@ export class InterviewSessionManager{
         this.live_session_store.set_live_session_info(live_session_info);
         return live_session_info;
     }
+
+    /**
+     * Terminally completes the session. The backend owns the state change and
+     * the final duration accounting; re-reading afterwards makes the local
+     * store observe `completed` before the caller tears the room down and
+     * navigates away. Never calls LiveKit directly - only the session API.
+     */
+    async end(session_id: string): Promise<LiveSessionInfo>{
+        await this.session_service.end_session(session_id);
+        const live_session_info =
+            await this.session_service.refresh_live_session_info(session_id);
+        this.live_session_store.set_live_session_info(live_session_info);
+        return live_session_info;
+    }
     async get_user(user_id: string) : Promise<GetUser>{
         const user = await this.user_service.get_user(user_id);
         if(!user){

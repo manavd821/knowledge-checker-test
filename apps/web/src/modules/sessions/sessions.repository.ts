@@ -1,9 +1,9 @@
 import { DB } from "@/db/types";
 import { sessions } from "@/modules/sessions/sessions.table";
 import { session_participants } from "@/modules/session-participants/session-participants.table";
-import { eq, desc, or, inArray } from "drizzle-orm";
+import { eq, desc, or, inArray, and } from "drizzle-orm";
 import get_logger from "@/lib/logging/logger-factory";
-import type { NewSession, SelectSession } from "@/modules/sessions/sessions.types";
+import type { NewSession, SelectSession, Status } from "@/modules/sessions/sessions.types";
 import { DatabaseBoundary } from "@/modules/database-boundary";
 
 const logger = get_logger();
@@ -58,6 +58,33 @@ export class SessionRepository{
         .update(sessions)
         .set(update)
         .where(eq(sessions.session_id, session_id));
+    }
+
+    /**
+     * Conditional (compare-and-set) status update used by every lifecycle
+     * transition. The current status is re-checked inside the same statement,
+     * so a stale pause / resume / LiveKit webhook can never overwrite a
+     * completed session and two concurrent transitions cannot both apply.
+     * Returns the updated row, or undefined when the status was not one of
+     * `allowed_statuses` at write time.
+     */
+    @DatabaseBoundary("update session status conditionally")
+    async update_if_status(
+        session_id: string,
+        allowed_statuses: Status[],
+        update : Partial<SelectSession>,
+    ): Promise<SelectSession | undefined>{
+        const data = await this.database
+        .update(sessions)
+        .set(update)
+        .where(
+            and(
+                eq(sessions.session_id, session_id),
+                inArray(sessions.status, allowed_statuses),
+            )
+        )
+        .returning();
+        return data[0];
     }
 
     /**
