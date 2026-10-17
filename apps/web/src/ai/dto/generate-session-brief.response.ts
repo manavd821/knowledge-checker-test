@@ -1,12 +1,9 @@
-import { 
-    TopicType, 
-    Difficulty,
-    Domain,
-    CustomInstructions,
-} from "@/modules";
+import { z } from "zod";
 
-export interface GenerateSessionBriefResponse {
-    sessionBrief: string;
-    tokenCount: number;
+export const GenerateSessionBriefResponseSchema = z.object({
+    sessionBrief: z.string(),
+    tokenCount: z.number(),
+});
 
-}
+export type GenerateSessionBriefResponse =
+    z.infer<typeof GenerateSessionBriefResponseSchema>;

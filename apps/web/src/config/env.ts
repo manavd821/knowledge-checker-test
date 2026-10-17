@@ -26,6 +26,9 @@ const envSchema = z.object({
     APPWRITE_API_SECRET: z.string().nonempty(),
     APPWRITE_PROJECT_ID: z.string().nonempty(),
     APPWRITE_BUCKET_ID: z.string().nonempty(),
+
+    AI_SERVICE_BASE_URL: z.url().nonempty(),
+    AI_SERVICE_SHARED_SECRET: z.string().nonempty(),
 });
 
 let env = envSchema.parse(process.env);
@@ -36,7 +39,7 @@ export const validateEnv = () => {
     const result = envSchema.safeParse(process.env);
     
     if(!result.success){
-        logger.error("❌ Environment validation failed", result.error.issues);
+        logger.error("❌ Environment validation failed", { issues: result.error.issues });
         throw new Error("Environment validation failed");
     }
     logger.info("env variables succesfully loaded.");

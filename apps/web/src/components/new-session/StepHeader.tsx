@@ -1,4 +1,4 @@
-import { Step } from "@/modules"
+import { Step } from "@/react/session-form/session-form.types"
 
 export function StepHeader({ 
     currentStep, 

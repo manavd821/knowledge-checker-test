@@ -2,9 +2,11 @@ import { db } from "@/db/client";
 import { ConfigurationError } from "@/exceptions/ConfigurationError";
 import { NotFoundError } from "@/exceptions/NotFoundError";
 import { withRequestContextAndErrorHandling } from "@/lib/api/wrap-routes";
+import { getRequestContext } from "@/lib/logging/request-contexts";
 import get_logger from "@/lib/logging/logger-factory";
 import { LiveSessionInfoSchema } from "@/modules";
 import { createServices } from "@/modules/factory";
+import { DeleteSessionSuccess } from "@/shared/dto/sessions/delete-session.dto";
 import { GetSessionSuccess } from "@/shared/dto/sessions/get-session.dto";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -46,4 +48,28 @@ export const GET = withRequestContextAndErrorHandling(async (
         data : zod_res.data
     } satisfies GetSessionSuccess;
     return NextResponse.json(res, { status : 200 });
+})
+
+export const DELETE = withRequestContextAndErrorHandling(async (
+    req: NextRequest,
+    { params } : { params : Promise<{session_id: string}> },
+) => {
+    const { session_id } = await params;
+    const user_id = getRequestContext()?.user_id ?? "";
+    const logger = get_logger();
+
+    const deleted = await db.transaction(async (tx) => {
+        return createServices(tx).sessions.deleteSession(session_id, user_id);
+    });
+
+    logger.info("Session deleted successfully", { session_id, user_id });
+
+    const res = {
+        success: true,
+        data: {
+            session_id: deleted.session_id,
+        },
+    } satisfies DeleteSessionSuccess;
+
+    return NextResponse.json(res, { status: 200 });
 })

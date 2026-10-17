@@ -1,16 +1,50 @@
 import { IAIClient } from "@/ai/ai-client";
-import get_logger from "@/lib/logging/logger-factory";
+import { ExternalServiceError } from "@/exceptions/ExternalServiceError";
 import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
-import { GenerateSessionBriefResponse } from "@/ai/dto/generate-session-brief.response";
+import {
+    GenerateSessionBriefResponse,
+    GenerateSessionBriefResponseSchema,
+} from "@/ai/dto/generate-session-brief.response";
 
 
-const logger = get_logger();
 export class FastAPIAIClient implements IAIClient{
-    generate_session_brief(data : GenerateSessionBriefRequest): GenerateSessionBriefResponse {
-        logger.info("generate session brief");
-        return {
-            sessionBrief : "this is session brief",
-            tokenCount : 10,
+    constructor(
+        private readonly base_url: string,
+        private readonly service_secret: string,
+    ){}
+
+    async generate_session_brief(
+        data : GenerateSessionBriefRequest,
+    ): Promise<GenerateSessionBriefResponse> {
+        let res: Response;
+        try {
+            res = await fetch(`${this.base_url}/session-brief`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-AI-Service-Secret": this.service_secret,
+                },
+                body: JSON.stringify(data),
+            });
+        } catch (error) {
+            throw new ExternalServiceError(
+                "AI service is unreachable",
+                "ai-service",
+                "generate_session_brief",
+                error,
+            );
         }
+
+        if (!res.ok) {
+            throw new ExternalServiceError(
+                "AI service failed to generate the session brief",
+                "ai-service",
+                "generate_session_brief",
+                { status: res.status },
+            );
+        }
+
+        const json = await res.json();
+        return GenerateSessionBriefResponseSchema.parse(json);
     }
 }

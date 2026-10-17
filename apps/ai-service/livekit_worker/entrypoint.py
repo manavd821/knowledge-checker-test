@@ -6,17 +6,16 @@ from livekit.agents import (
     TurnHandlingOptions,
     inference
 )
-from livekit.plugins import (
-    deepgram,
-    cartesia,
-)
 from livekit.rtc import RemoteParticipant
 import structlog
+from execution_profile.enums import ExecutionProfile
 from lib.logging.logging import configure_logging
 from livekit_worker.agent import InterviewAgent
 from livekit_worker.lifespan import clean_up
 from livekit_worker.message_publisher import RealtimeMessagePublisher
 from livekit_worker.models import ParticipantMetadata
+from speech_llm.enums import SpeechTasks
+from speech_llm.factory import get_stt_factory, get_tts_factory
 
 
 configure_logging()
@@ -40,15 +39,16 @@ async def entrypoint(ctx : JobContext):
     participant_id = participant.identity
     metadata = ParticipantMetadata.model_validate_json(participant.metadata)
 
+    # Speech-to-text / text-to-speech are resolved through the same
+    # config-driven selection the LLM tasks use: the profile picks the
+    # provider + model, never the worker.
+    speech_profile = ExecutionProfile.BALANCED
+    stt = get_stt_factory().create(SpeechTasks.LIVE_STT, speech_profile)
+    tts = get_tts_factory().create(SpeechTasks.LIVE_TTS, speech_profile)
+
     session = AgentSession(
-        stt = deepgram.STT(
-            model="nova-3",
-            language="en-US",
-        ),
-        tts = cartesia.TTS(
-            model="sonic-3",
-            language="en",
-        ),
+        stt = stt,
+        tts = tts,
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
             endpointing={

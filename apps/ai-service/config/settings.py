@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     
     THRESHOLD_SUMMARIZE: int
     FUNDAMENTAL_PHASE_COUNT: int
+
+    AI_SERVICE_SHARED_SECRET: str
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 @lru_cache

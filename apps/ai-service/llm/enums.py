@@ -25,4 +25,5 @@ class Tasks(str, Enum):
     QUESTION_GEN = "question-gen"
     HINT_GEN = "hint-gen"
     CONTEXT_SUMMARY = "context_summary"
+    SESSION_BRIEF = "session_brief"
 

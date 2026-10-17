@@ -1,6 +1,7 @@
 import { DB } from "@/db/types";
 import { sessions } from "@/modules/sessions/sessions.table";
 import { session_participants } from "@/modules/session-participants/session-participants.table";
+import { sessionRuntimeContext } from "@/modules/session-runtime-contexts/session-runtime-contexts.table";
 import { eq, desc, or, inArray, and } from "drizzle-orm";
 import get_logger from "@/lib/logging/logger-factory";
 import type { NewSession, SelectSession, Status } from "@/modules/sessions/sessions.types";
@@ -84,6 +85,29 @@ export class SessionRepository{
             )
         )
         .returning();
+        return data[0];
+    }
+
+    /**
+     * Hard-deletes one session and returns the removed row, or undefined when
+     * the row no longer exists (concurrent deletion).
+     *
+     * Every dependent row cascades with the session except
+     * `session_runtime_context`, whose foreign key is ON DELETE NO ACTION, so
+     * it is removed explicitly first. The whole method runs inside the caller
+     * transaction: a later failure rolls both deletes back together.
+     */
+    @DatabaseBoundary("delete session")
+    async delete(session_id: string): Promise<SelectSession | undefined> {
+        await this.database
+            .delete(sessionRuntimeContext)
+            .where(eq(sessionRuntimeContext.session_id, session_id));
+
+        const data = await this.database
+            .delete(sessions)
+            .where(eq(sessions.session_id, session_id))
+            .returning();
+
         return data[0];
     }
 

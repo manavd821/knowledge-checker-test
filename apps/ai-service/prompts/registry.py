@@ -9,6 +9,8 @@ from prompts.question_generator.human import QUESTION_GENERATOR_HUMAN
 from prompts.question_generator.system import QUESTION_GENERATOR_SYSTEM
 from prompts.hint_generator.human import HINT_GENERATION_HUMAN
 from prompts.hint_generator.system import HINT_GENERATION_SYSTEM
+from prompts.session_brief.human import SESSION_BRIEF_HUMAN
+from prompts.session_brief.system import SESSION_BRIEF_SYSTEM
 
 
 PROMPT_REGISTRY : dict[Tasks, ChatPromptTemplate] = {
@@ -27,6 +29,10 @@ PROMPT_REGISTRY : dict[Tasks, ChatPromptTemplate] = {
     Tasks.HINT_GEN : ChatPromptTemplate.from_messages([
         HINT_GENERATION_SYSTEM,
         HINT_GENERATION_HUMAN,
+    ]),
+    Tasks.SESSION_BRIEF : ChatPromptTemplate.from_messages([
+        SESSION_BRIEF_SYSTEM,
+        SESSION_BRIEF_HUMAN,
     ]),
 }
 

@@ -190,6 +190,51 @@ def register_hint_generation_config(resolver: LLMResolver):
         ),
     )
 
+def register_session_brief_config(resolver: LLMResolver):
+    resolver.register(
+        Tasks.SESSION_BRIEF,
+        ExecutionProfile.LOW_LATENCY,
+        TaskConfig(
+            temperature=0.6,
+            max_tokens=500,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.SESSION_BRIEF,
+        ExecutionProfile.HIGH_QUALITY,
+        TaskConfig(
+            temperature=0.6,
+            max_tokens=800,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_2_5_PRO,
+        ),
+    )
+
+    resolver.register(
+        Tasks.SESSION_BRIEF,
+        ExecutionProfile.LOW_COST,
+        TaskConfig(
+            temperature=0.6,
+            max_tokens=500,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.SESSION_BRIEF,
+        ExecutionProfile.BALANCED,
+        TaskConfig(
+            temperature=0.6,
+            max_tokens=600,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_5_FLASH_LITE,
+        ),
+    )
+
 def register_context_summary_config(resolver: LLMResolver):
     resolver.register(
         Tasks.CONTEXT_SUMMARY,
@@ -265,6 +310,11 @@ def get_llm_resolver() -> LLMResolver:
     # CONTEXT SUMMARY
     # ---------------------------------------------------------
     register_context_summary_config(resolver)
+
+    # ---------------------------------------------------------
+    # SESSION BRIEF
+    # ---------------------------------------------------------
+    register_session_brief_config(resolver)
 
     return resolver
 

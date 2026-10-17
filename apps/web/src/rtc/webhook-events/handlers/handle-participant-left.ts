@@ -1,6 +1,9 @@
 import { db } from "@/db/client";
+import get_logger from "@/lib/logging/logger-factory";
 import { createServices } from "@/modules/factory";
 import { ProvisionerWebhookEvents } from "@/rtc/webhook-events/provisioner-webhook-events";
+
+const logger = get_logger();
 
 export const handleParticipantLeft = async (
     payload: ProvisionerWebhookEvents["participant_left"]
@@ -15,10 +18,19 @@ export const handleParticipantLeft = async (
                     session_participants: session_participants_service,
                     sessions: session_service,
                 } = createServices(tx);
-                // validate the connection
+                // A deleted session cascades its connections away, so a late
+                // participant_left must be ignored instead of resurrecting or
+                // erroring on a session that no longer exists.
                 const session_connection =
-                    await session_connections_service.validate_connection(connection_id);
-                
+                    await session_connections_service.find_connection(connection_id);
+                if (!session_connection || session_connection.left_at) {
+                    logger.info(
+                        "participant_left ignored: connection already closed",
+                        { connection_id, session_id },
+                    );
+                    return;
+                }
+
                 // calculate connection's duration
                 const now = new Date();
                 const elapsedMs = now.getTime() - session_connection.joined_at.getTime();

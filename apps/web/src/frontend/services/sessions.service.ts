@@ -142,6 +142,16 @@ export class SessionService{
         }
         return res.data;
     }
+    async delete_session(session_id: string): Promise<void> {
+        const res = await this.connection_service.delete_session(session_id);
+        if (!res.success) {
+            throw new Error(res.message, {
+                cause: {
+                    ...res,
+                },
+            });
+        }
+    }
     async list_sessions(): Promise<SessionSummary[]>{
         const res = await this.connection_service.list_sessions();
 

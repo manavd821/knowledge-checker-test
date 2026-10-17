@@ -12,8 +12,11 @@ import { EvaluationSummariesRepository } from "@/modules/evaluation-summaries/ev
 import { SessionParticipantsService } from "@/modules/session-participants/session-participants.service";
 import { DocumentExtractionService } from "@/document/document-extraction.service";
 import { IAIClient } from "@/ai/ai-client";
+import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
+import { GenerateSessionBriefResponse } from "@/ai/dto/generate-session-brief.response";
 import { IObjectStorage } from "@/storage/object-storage";
-import { SelectSession, Status } from "@/modules";
+import { CreateSessionRoute, SelectDocument, SelectSession, Status } from "@/modules";
+import { MAX_BRIEF_DOCUMENT_CHARS } from "@/shared/enums";
 
 /**
  * Focused unit tests for the session lifecycle compare-and-set rules.
@@ -278,6 +281,14 @@ test("pause_session_if_active is a no-op on a completed session", async () => {
     assert.equal(cas_calls.length, 0);
 });
 
+test("pause_session_if_active is a no-op when the session no longer exists", async () => {
+    const { service } = deletion_harness({ session: undefined });
+
+    // resolves without throwing: a late participant_left webhook for a deleted
+    // session must never surface a NotFound error.
+    await service.pause_session_if_active("deleted", new Date());
+});
+
 test("pause_session_if_active pauses an active session with a CAS on active only", async () => {
     const active_since = new Date(Date.now() - 10_000);
     const session = base_session({
@@ -319,4 +330,304 @@ test("mark_session_active_and_started_at cannot reactivate a completed session",
     );
     assert.equal(cas_calls.length, 1);
     assert.deepEqual(cas_calls[0].allowed, ["preparing", "ready", "pause"]);
+});
+
+/**
+ * Deletion replaces the whole dependency graph of the service with doubles:
+ * the repository, the document lookup and the object store are the only
+ * collaborators deleteSession touches.
+ */
+const deletion_harness = (options: {
+    session: SelectSession | undefined;
+    documents?: { storage_url: string }[];
+}) => {
+    const deleted_objects: string[] = [];
+    const state = {
+        delete_called: 0,
+        deleted_session_id: undefined as string | undefined,
+    };
+
+    const service = new SessionService(
+        {
+            get_by_session_id: async () => options.session,
+            delete: async (session_id: string) => {
+                state.delete_called += 1;
+                state.deleted_session_id = session_id;
+                return options.session;
+            },
+        } as unknown as SessionRepository,
+        {
+            get_by_session_id: async () =>
+                (options.documents ?? []) as unknown as SelectDocument[],
+        } as unknown as SessionDocumentRepository,
+        {} as unknown as IAIClient,
+        {} as unknown as DocumentExtractionService,
+        {
+            delete: async (key: string) => {
+                deleted_objects.push(key);
+            },
+        } as unknown as IObjectStorage,
+        {} as unknown as SessionParticipantsService,
+        {} as unknown as TurnsRepository,
+        {} as unknown as EvaluationSummariesRepository,
+    );
+
+    return { service, deleted_objects, state };
+};
+
+test("deleteSession removes an owned non-active session and purges its stored documents", async () => {
+    const session = base_session({ status: "completed" });
+    const { service, deleted_objects, state } = deletion_harness({
+        session,
+        documents: [
+            { storage_url: "bucket/key-1" },
+            { storage_url: "bucket/key-2" },
+        ],
+    });
+
+    const result = await service.deleteSession(
+        session.session_id,
+        session.created_by,
+    );
+
+    assert.equal(result.session_id, session.session_id);
+    assert.equal(state.delete_called, 1);
+    assert.equal(state.deleted_session_id, session.session_id);
+    assert.deepEqual(deleted_objects, ["bucket/key-1", "bucket/key-2"]);
+});
+
+test("deleteSession refuses a user who is not the creator", async () => {
+    const session = base_session({ status: "completed" });
+    const { service, deleted_objects, state } = deletion_harness({ session });
+
+    await assert.rejects(
+        () => service.deleteSession(session.session_id, "someone_else"),
+        /Only the session owner can delete this session/,
+    );
+    assert.equal(state.delete_called, 0);
+    assert.deepEqual(deleted_objects, []);
+});
+
+test("deleteSession refuses an active session", async () => {
+    const session = base_session({ status: "active" });
+    const { service, state } = deletion_harness({ session });
+
+    await assert.rejects(
+        () => service.deleteSession(session.session_id, session.created_by),
+        /Cannot delete an active session/,
+    );
+    assert.equal(state.delete_called, 0);
+});
+
+test("deleteSession reports a missing session", async () => {
+    const { service, state } = deletion_harness({ session: undefined });
+
+    await assert.rejects(
+        () => service.deleteSession("missing", "user_1"),
+        /Session not found/,
+    );
+    assert.equal(state.delete_called, 0);
+});
+
+const create_data: CreateSessionRoute = {
+    session_type: "ai_session",
+    participants: [
+        {
+            user_id: "user_1",
+            email: "candidate@example.com",
+            first_name: null,
+            last_name: null,
+            image_url: null,
+            role: "candidate",
+        },
+    ],
+    topic_type: "technical",
+    role_level: "intermediate",
+    difficulty: "medium",
+    domain: "swe",
+    custom_domain: null,
+    duration_minutes: 30,
+    ai_strictness: "balanced",
+    realtime_transcript: true,
+    ai_hints_enabled: false,
+    camera_required: false,
+    session_documents: [],
+};
+
+const create_harness = (options: {
+    brief?: GenerateSessionBriefResponse;
+    brief_error?: Error;
+    documents?: { name: string; key: string; extracted_text: string }[];
+}) => {
+    const updates: {
+        session_id: string;
+        update: Partial<SelectSession>;
+    }[] = [];
+    let brief_request: GenerateSessionBriefRequest | undefined;
+
+    const document_for = (file: File) =>
+        options.documents?.find((doc) => doc.name === file.name);
+
+    const service = new SessionService(
+        {
+            create: async () => "session-1",
+            update: async (
+                session_id: string,
+                update: Partial<SelectSession>,
+            ) => {
+                updates.push({ session_id, update });
+            },
+            update_status: async () => undefined,
+        } as unknown as SessionRepository,
+        {
+            create: async () => ({}),
+        } as unknown as SessionDocumentRepository,
+        {
+            generate_session_brief: async (data: GenerateSessionBriefRequest) => {
+                brief_request = data;
+                if (options.brief_error) {
+                    throw options.brief_error;
+                }
+                return options.brief!;
+            },
+        } as unknown as IAIClient,
+        {
+            extract: async (file: File) =>
+                document_for(file)?.extracted_text ?? "",
+        } as unknown as DocumentExtractionService,
+        {
+            store: async (file: File) => ({
+                key: document_for(file)?.key ?? "bucket/key",
+                name: file.name,
+                contentType: "application/pdf",
+                size: file.size,
+            }),
+        } as unknown as IObjectStorage,
+        {
+            create_multiple_participants: async () => ["participant-1"],
+        } as unknown as SessionParticipantsService,
+        {} as unknown as TurnsRepository,
+        {} as unknown as EvaluationSummariesRepository,
+    );
+
+    return { service, updates, get_brief_request: () => brief_request };
+};
+
+test("createSession persists the AI-generated brief exactly once", async () => {
+    const { service, updates } = create_harness({
+        brief: { sessionBrief: "Focused technical interview.", tokenCount: 42 },
+    });
+
+    const session_id = await service.createSession("user_1", create_data);
+
+    assert.equal(session_id, "session-1");
+    const brief_updates = updates.filter((u) => "session_brief" in u.update);
+    assert.equal(brief_updates.length, 1);
+    assert.equal(brief_updates[0].update.session_brief, "Focused technical interview.");
+    assert.equal(brief_updates[0].update.session_brief_tokens, 42);
+});
+
+test("createSession still succeeds and stores no brief when generation fails", async () => {
+    const { service, updates } = create_harness({
+        brief_error: new Error("ai service unavailable"),
+    });
+
+    const session_id = await service.createSession("user_1", create_data);
+
+    assert.equal(session_id, "session-1");
+    assert.equal(updates.some((u) => "session_brief" in u.update), false);
+});
+
+test("createSession sends the whole session configuration to brief generation", async () => {
+    const { service, get_brief_request } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+    });
+
+    await service.createSession("user_1", create_data);
+
+    assert.deepEqual(get_brief_request(), {
+        topic_type: "technical",
+        role_level: "intermediate",
+        difficulty: "medium",
+        domain: "swe",
+        custom_domain: undefined,
+        ai_strictness: "balanced",
+        custom_instructions: undefined,
+        document_text: undefined,
+    });
+});
+
+test("createSession forwards custom_domain and custom_instructions when set", async () => {
+    const { service, get_brief_request } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+    });
+
+    await service.createSession("user_1", {
+        ...create_data,
+        domain: "custom",
+        custom_domain: "platform engineering",
+        custom_instructions: "focus on distributed systems",
+    });
+
+    const request = get_brief_request()!;
+    assert.equal(request.domain, "custom");
+    assert.equal(request.custom_domain, "platform engineering");
+    assert.equal(request.custom_instructions, "focus on distributed systems");
+});
+
+test("createSession omits document_text when no documents are attached", async () => {
+    const { service, get_brief_request } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+    });
+
+    await service.createSession("user_1", create_data);
+
+    assert.equal(get_brief_request()!.document_text, undefined);
+});
+
+test("createSession passes extracted document text with clear document boundaries", async () => {
+    const documents = [
+        { name: "design.pdf", key: "bucket/design", extracted_text: "Kafka partitions." },
+        { name: "notes.md", key: "bucket/notes", extracted_text: "Consumer groups." },
+    ];
+    const { service, get_brief_request } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+        documents,
+    });
+
+    await service.createSession("user_1", {
+        ...create_data,
+        session_documents: [
+            new File(["design"], "design.pdf", { type: "application/pdf" }),
+            new File(["notes"], "notes.md", { type: "text/markdown" }),
+        ],
+    });
+
+    assert.equal(
+        get_brief_request()!.document_text,
+        "--- design.pdf ---\nKafka partitions.\n\n--- notes.md ---\nConsumer groups.",
+    );
+});
+
+test("createSession marks truncated document text instead of cutting it silently", async () => {
+    const long_text = "x".repeat(MAX_BRIEF_DOCUMENT_CHARS + 500);
+    const { service, get_brief_request } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+        documents: [{ name: "big.txt", key: "bucket/big", extracted_text: long_text }],
+    });
+
+    await service.createSession("user_1", {
+        ...create_data,
+        session_documents: [
+            new File(["big"], "big.txt", { type: "text/plain" }),
+        ],
+    });
+
+    const document_text = get_brief_request()!.document_text!;
+    assert.ok(document_text.length < long_text.length);
+    assert.ok(
+        document_text.endsWith(
+            `[document text truncated at ${MAX_BRIEF_DOCUMENT_CHARS} characters]`,
+        ),
+    );
 });

@@ -11,6 +11,10 @@ from speech_llm.models import (
     TTSModelProvider,
 )
 from speech_llm.resolver import SpeechResolver
+from speech_llm.stt.factory import STTFactory
+from speech_llm.stt.provider_registry import STTProviderRegistry
+from speech_llm.tts.factory import TTSFactory
+from speech_llm.tts.provider_registry import TTSProviderRegistry
 
 @lru_cache
 def get_speech_resolver() -> SpeechResolver:
@@ -137,3 +141,17 @@ def get_speech_resolver() -> SpeechResolver:
     )
 
     return resolver
+
+
+def get_stt_factory() -> STTFactory:
+    return STTFactory(
+        get_speech_resolver(),
+        STTProviderRegistry(),
+    )
+
+
+def get_tts_factory() -> TTSFactory:
+    return TTSFactory(
+        get_speech_resolver(),
+        TTSProviderRegistry(),
+    )

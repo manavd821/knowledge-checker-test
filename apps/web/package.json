@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/modules/sessions/sessions.service.test.ts"
+    "test": "tsx --test src/modules/sessions/sessions.service.test.ts src/ai/fastapi-ai-client.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

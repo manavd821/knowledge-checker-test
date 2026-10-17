@@ -4,8 +4,10 @@ import { TurnsRepository } from "@/modules/turns/turns.repository";
 import { EvaluationSummariesRepository } from "@/modules/evaluation-summaries/evaluation-summaries.repository";
 import { CreateSession, CreateSessionParticipants, CreateSessionRoute, CreateSessionSchema, NewSession, SelectSession, Status } from "@/modules";
 import { IAIClient } from "@/ai/ai-client";
+import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
 import { DocumentExtractionService } from "@/document/document-extraction.service";
 import { IObjectStorage } from "@/storage/object-storage";
+import { StoredObject } from "@/storage/types/stored-object";
 import { MimeType, NewDocument } from "@/modules/session-documents/session-documents.types";
 import { MIME_TO_FILE_TYPE } from "@/react/session-form/sessions.meta";
 import get_logger from "@/lib/logging/logger-factory";
@@ -13,7 +15,7 @@ import { NotFoundError } from "@/exceptions/NotFoundError";
 import { ForbiddenError } from "@/exceptions/ForbiddenError";
 import { ConflictError } from "@/exceptions/ConflictError";
 import { SessionParticipantsService } from "@/modules/session-participants/session-participants.service";
-import { ARRAY_FIELD } from "@/shared/enums";
+import { ARRAY_FIELD, MAX_BRIEF_DOCUMENT_CHARS } from "@/shared/enums";
 import { ConfigurationError } from "@/exceptions/ConfigurationError";
 
 const logger = get_logger()
@@ -74,6 +76,9 @@ export class SessionService{
         // create session
         const session_id = await this.session_repo.create(session_data);
         logger.info("Session created succefully", {session_id});
+
+        let document_text : string | undefined;
+
         // add session documents
         if(data.session_documents && data.session_documents.length){
             // store docs in object storage and extract text
@@ -100,9 +105,23 @@ export class SessionService{
                 })
             )
             logger.info("session document are stored succefully",{session_id});
-            // generate and store session brief
 
+            document_text = this.build_document_text(results);
         }
+
+        // generate and store the session brief once, from the configuration and
+        // the already-extracted document text available at creation time
+        await this.generate_and_store_session_brief(session_id, {
+            topic_type: data.topic_type,
+            role_level: data.role_level,
+            difficulty: data.difficulty,
+            domain: data.domain,
+            custom_domain: data.custom_domain ?? undefined,
+            ai_strictness: data.ai_strictness,
+            custom_instructions: data.custom_instructions,
+            document_text: document_text,
+        });
+
         // add participants
         const participants : CreateSessionParticipants[] = 
             data.participants.map(p => ({
@@ -119,6 +138,61 @@ export class SessionService{
         await this.update_session_status(session_id, "ready");
         return session_id;
     }
+
+    /**
+     * Combines the extracted text of every uploaded document into a single
+     * payload for brief generation, keeping a clear label per document so the
+     * model knows which content came from which file. The combined text is
+     * capped by MAX_BRIEF_DOCUMENT_CHARS; when the cap is hit the cut-off is
+     * stated explicitly instead of dropping content silently.
+     */
+    private build_document_text(
+        documents: { stored_object: StoredObject; extracted_text: string }[],
+    ): string{
+        const combined = documents
+            .map(({ stored_object, extracted_text }) =>
+                `--- ${stored_object.name} ---\n${extracted_text}`
+            )
+            .join("\n\n");
+
+        if(combined.length <= MAX_BRIEF_DOCUMENT_CHARS){
+            return combined;
+        }
+
+        return (
+            combined.slice(0, MAX_BRIEF_DOCUMENT_CHARS) +
+            `\n\n[document text truncated at ${MAX_BRIEF_DOCUMENT_CHARS} characters]`
+        );
+    }
+
+    /**
+     * Generates the AI session brief once, at creation, and stores it on the
+     * session row.
+     *
+     * Persistence is best-effort on purpose: the brief is an enhancement, and a
+     * failed AI call must never roll back or block an otherwise valid session.
+     * Nothing is written when generation fails (no fabricated brief), and the
+     * brief is only ever written here, so it cannot be persisted twice.
+     */
+    private async generate_and_store_session_brief(
+        session_id: string,
+        data: GenerateSessionBriefRequest,
+    ): Promise<void>{
+        try {
+            const brief = await this.ai_client.generate_session_brief(data);
+            await this.session_repo.update(session_id, {
+                session_brief: brief.sessionBrief,
+                session_brief_tokens: brief.tokenCount,
+            });
+            logger.info("Session brief stored", { session_id });
+        } catch (error) {
+            logger.error("Failed to generate session brief", {
+                session_id,
+                error,
+            });
+        }
+    }
+
     async pauseSession(
         session_id: string,
         user_id: string,
@@ -291,6 +365,64 @@ export class SessionService{
         );
     }
 
+    /**
+     * Permanently removes a session and everything it owns.
+     *
+     * Only the creator may delete: participating in someone else's session
+     * never grants destructive rights. A live (`active`) session is refused so
+     * a running LiveKit agent / participant is never left orphaned - it must be
+     * ended first. Dependent rows cascade with the session row (see
+     * SessionRepository.delete for the one exception), and the stored documents
+     * are purged from the object store using the keys persisted at upload time.
+     */
+    async deleteSession(
+        session_id: string,
+        user_id: string,
+    ): Promise<SelectSession>{
+        const session = await this.session_repo.get_by_session_id(session_id);
+        if (!session) {
+            throw new NotFoundError("Session not found", session_id, "session");
+        }
+
+        if (session.created_by !== user_id) {
+            throw new ForbiddenError(
+                "Only the session owner can delete this session",
+                session_id,
+            );
+        }
+
+        if (session.status === "active") {
+            throw new ConflictError(
+                "Cannot delete an active session",
+                "session",
+                "end the session before deleting it.",
+            );
+        }
+
+        // Read the stored keys before the cascade removes the document rows:
+        // the object store is only ever addressed by keys we actually saved.
+        const documents = await this.session_doc_repo.get_by_session_id(session_id);
+
+        const deleted = await this.session_repo.delete(session_id);
+        if (!deleted) {
+            throw new NotFoundError("Session not found", session_id, "session");
+        }
+
+        await Promise.all(
+            documents.map((document) =>
+                this.object_store.delete(document.storage_url)
+            ),
+        );
+
+        logger.info("Session deleted", {
+            session_id,
+            user_id,
+            documents: documents.length,
+        });
+
+        return deleted;
+    }
+
     async update_session_status(session_id : string, status: Status) : Promise<void>{
         await this.session_repo.update_status(session_id, status);
     }
@@ -380,12 +512,10 @@ export class SessionService{
         now: Date,
     ){
         const session = await this.session_repo.get_by_session_id(session_id);
+        // A late participant_left webhook arriving after the session was
+        // deleted must be a no-op: there is nothing left to pause.
         if (!session) {
-            throw new NotFoundError(
-                "Session not found",
-                session_id,
-                "sessions",
-            );
+            return;
         }
         if (session.status !== "active") {
             return;

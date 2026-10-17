@@ -1,4 +1,4 @@
-import { Step } from "@/modules"
+import { Step } from "@/react/session-form/session-form.types"
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Fragment } from "react";

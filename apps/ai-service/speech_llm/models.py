@@ -13,9 +13,9 @@ from speech_llm.enums import (
 class STTConfig(BaseModel):
     stt_model_provider: STTModelProvider
     stt_model: STTModel
-    language: Literal["en"]
+    language: Literal["en"] = "en"
     
 class TTSConfig(BaseModel):
     tts_model_provider: TTSModelProvider
     tts_model: TTSModel
-    language: Literal["en"]
+    language: Literal["en"] = "en"

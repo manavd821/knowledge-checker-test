@@ -15,3 +15,10 @@ export const MAX_PARTICIPANTS = 4
 export const MAX_DOCUMENTS = 2;
 export const MAX_DOCUMENT_SIZE = 5 * 1024 * 1024; // 5MB
 export const ARRAY_FIELD = new Set(["participants", "session_documents"]);
+
+// Upper bound on the extracted document text sent to the AI service for
+// session-brief generation. A single upload may be up to 5MB, which can exceed
+// the brief model's context window, so the combined text is bounded here. The
+// payload marks the cut-off explicitly, so the model never treats a truncated
+// document as complete.
+export const MAX_BRIEF_DOCUMENT_CHARS = 16000;

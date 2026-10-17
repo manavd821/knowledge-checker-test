@@ -23,7 +23,7 @@ export function ScheduleSection(){
     const time_id = useId();
     const calender_id = useId();
 
-    const handleSelect = (date : Date) => {
+    const handleSelect = (date : Date | undefined) => {
         if(!date) return;
 
         const updated = new Date(date);

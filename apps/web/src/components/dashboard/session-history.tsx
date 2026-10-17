@@ -1,11 +1,22 @@
 "use client";
+import { useState } from "react";
 import { CalendarDays, Clock, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/react/sessions/hooks/use-sessions";
 import { useResumeSession } from "@/react/sessions/hooks/use-resume-session";
+import { useDeleteSession } from "@/react/sessions/hooks/use-delete-session";
 import {
     DIFFICULTY_META,
     DOMAIN_META,
@@ -52,9 +63,68 @@ const format_duration = (actual_sec: number | null, planned: number) => {
 };
 
 /**
+ * Confirmed, pending-aware deletion of a session the user owns. The backend
+ * refuses to delete an active session, so the trigger is only offered for the
+ * other states; errors (e.g. ownership) surface inside the dialog.
+ */
+function DeleteSessionButton({ session }: { session: SessionSummary }){
+    const [open, set_open] = useState(false);
+    const { mutate, isPending, error, reset } = useDeleteSession();
+
+    const handle_open_change = (next: boolean) => {
+        if (isPending) return;
+        set_open(next);
+        if (!next) reset();
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={handle_open_change}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                    Delete
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Delete this session?</DialogTitle>
+                    <DialogDescription>
+                        This permanently removes the session, its transcript
+                        and its results. This cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                {error && (
+                    <p className="text-sm text-destructive">
+                        {error instanceof Error
+                            ? error.message
+                            : "Unable to delete the session."}
+                    </p>
+                )}
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        onClick={() => handle_open_change(false)}
+                        disabled={isPending}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={() => mutate(session.session_id)}
+                        disabled={isPending}
+                    >
+                        {isPending ? "Deleting..." : "Delete"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/**
  * Actions are driven by the actual backend status only:
  * - completed → [View Results]
  * - pause (or still active) → [Resume]
+ * - not active → [Delete]
  * Nothing is invented for the other states.
  */
 function SessionCard({ session }: { session: SessionSummary }){
@@ -64,6 +134,7 @@ function SessionCard({ session }: { session: SessionSummary }){
     const can_resume =
         session.status === "pause" || session.status === "active";
     const can_view_results = session.status === "completed";
+    const can_delete = session.status !== "active";
 
     const domain_label =
         session.domain === "custom" && session.custom_domain
@@ -163,6 +234,7 @@ function SessionCard({ session }: { session: SessionSummary }){
                         View Results
                     </Button>
                 )}
+                {can_delete && <DeleteSessionButton session={session} />}
             </div>
 
             {error && (

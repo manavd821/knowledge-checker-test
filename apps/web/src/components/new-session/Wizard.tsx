@@ -4,6 +4,7 @@ import {
     useForm,
     FormProvider,
     FieldErrors,
+    Resolver,
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
@@ -33,7 +34,7 @@ export function Wizard(){
 
     const form = useForm<SessionForm>({
         // resolver : zodResolver(getCurrentStepSchema()),
-        resolver : zodResolver(SessionFormSchema),
+        resolver : zodResolver(SessionFormSchema) as Resolver<SessionForm>,
         mode: "onChange",
         defaultValues : formData,
         // shouldUnregister: true,

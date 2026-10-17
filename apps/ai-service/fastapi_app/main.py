@@ -1,15 +1,24 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from fastapi import Depends
 from execution_profile.enums import ExecutionProfile
 from fastapi_app.bootstrap.app_factory import create_app
+from fastapi_app.dependencies import verify_service_secret
 from llm.factory import get_llm_gateway
 from models.enums import AI_STRICTNESS, Difficulty
 from models.enums import (
+    Domain,
     TopicType,
+    RoleLevel,
     Difficulty,
     AI_STRICTNESS,
 )
 from services.evaluation_service import EvaluationService
 from services.question_service import QuestionService
+from services.session_brief_service import (
+    MAX_DOCUMENT_TEXT_CHARS,
+    SessionBriefService,
+)
+from services.token_service import TokenService
 
 app = create_app()
 
@@ -55,3 +64,41 @@ async def test_question_generator(
     print(type(res))
     print(res)
     return res
+
+
+class SessionBriefRequest(BaseModel):
+    model_config = ConfigDict(
+        use_enum_values=True,
+    )
+
+    topic_type : TopicType
+    role_level : RoleLevel
+    difficulty : Difficulty
+    domain : Domain
+    custom_domain : str | None = Field(default=None, max_length=50)
+    ai_strictness : AI_STRICTNESS
+    custom_instructions : str | None = Field(default=None, max_length=300)
+    document_text : str | None = Field(
+        default=None,
+        max_length=MAX_DOCUMENT_TEXT_CHARS,
+    )
+
+
+class SessionBriefResponse(BaseModel):
+    sessionBrief : str
+    tokenCount : int
+
+
+@app.post('/session-brief', response_model=SessionBriefResponse)
+async def generate_session_brief(
+    payload : SessionBriefRequest,
+    _ : None = Depends(verify_service_secret),
+) -> SessionBriefResponse:
+    llm_gateway = get_llm_gateway(ExecutionProfile.BALANCED)
+    brief_service = SessionBriefService(llm_gateway)
+    brief = await brief_service.generate_brief(**payload.model_dump())
+    token_count = TokenService().estimate_tokens(brief)
+    return SessionBriefResponse(
+        sessionBrief=brief,
+        tokenCount=token_count,
+    )

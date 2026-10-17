@@ -19,7 +19,9 @@ export function DomainSection(){
             <Combobox 
             items={DOMAIN}
             value={domain}
-            onValueChange={updateDomain}
+            onValueChange={(d) => {
+                if(d !== null) updateDomain(d);
+            }}
             itemToStringLabel={(d) => DOMAIN_META[d].label}
             >
                 <ComboboxInput placeholder="Search domains..."/>

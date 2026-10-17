@@ -13,6 +13,18 @@ export class SessionConnectionsService{
     ) : Promise<string>{
         return await this.session_connection_repo.create(data)
     }
+
+    /**
+     * Non-throwing lookup used by the LiveKit webhook: a connection that is
+     * already gone (its session was deleted, cascading the connection away)
+     * must be a no-op, never an error.
+     */
+    async find_connection(
+        connection_id: string,
+    ) : Promise<SelectSessionConnection | undefined>{
+        return await this.session_connection_repo.get(connection_id);
+    }
+
     async validate_connection(
         connection_id: string,
     ) : Promise<SelectSessionConnection>{
