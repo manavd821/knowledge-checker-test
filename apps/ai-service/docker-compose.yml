@@ -1,0 +1,75 @@
+# Runs the three ai-service processes from a single image.
+#
+#   docker compose build
+#   docker compose up -d
+#   docker compose logs -f livekit-worker
+#
+# Required configuration lives in a local `.env` file next to this compose file
+# (it is git-ignored and never baked into the image). The services read:
+#
+#   DATABASE_URL, REDIS_URL, UPSTASH_REDIS_URL,
+#   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN,
+#   DEEPGRAM_API_KEY, CARTESIA_API_KEY, GOOGLE_API_KEY,
+#   LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_AGENT_NAME,
+#   LANGCHAIN_API_KEY, LANGCHAIN_TRACING_V2, LANGCHAIN_PROJECT,
+#   THRESHOLD_SUMMARIZE, FUNDAMENTAL_PHASE_COUNT, AI_SERVICE_SHARED_SECRET,
+#   GRAPH_REDIS_TTL_MINUTES
+
+name: knowledge-checker-ai-service
+
+x-ai-service: &ai-service
+    image: knowledge-checker-ai-service:latest
+    build:
+        context: .
+        dockerfile: Dockerfile
+    env_file:
+        - .env
+    restart: unless-stopped
+    # tini reaps the child processes the workers spawn (LiveKit job executors).
+    init: true
+
+services:
+    # HTTP API consumed by the Next.js BFF.
+    fastapi:
+        <<: *ai-service
+        container_name: kc-ai-fastapi
+        command:
+            - uvicorn
+            - fastapi_app.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+        ports:
+            - "${AI_SERVICE_PORT:-8000}:8000"
+        healthcheck:
+            test:
+                - CMD
+                - python
+                - -c
+                - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 20s
+
+    # Consumes the Redis conversation stream and persists turns / runtime state.
+    stream-worker:
+        <<: *ai-service
+        container_name: kc-ai-stream-worker
+        command:
+            - python
+            - -m
+            - stream_worker.main
+        stop_grace_period: 30s
+
+    # LiveKit Agents worker that joins interview rooms.
+    livekit-worker:
+        <<: *ai-service
+        container_name: kc-ai-livekit-worker
+        command:
+            - python
+            - -m
+            - livekit_worker.main
+            - start
+        stop_grace_period: 30s

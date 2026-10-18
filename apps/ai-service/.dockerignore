@@ -1,0 +1,38 @@
+# Keep the build context small and, more importantly, never leak local state
+# into the image.
+
+# Local virtualenv — the Windows/macOS build artifacts must not overwrite the
+# Linux virtualenv that uv installs inside the builder stage.
+.venv/
+
+# Secrets and machine-specific config. At run time the container reads these
+# from the environment (docker-compose `env_file`).
+.env
+.env.*
+!.env.example
+
+# Python build/cache artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local-only scratch directories
+folder/
+test/
+
+# VCS / editors
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Docker metadata is not needed inside the image
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Docs
+*.md
