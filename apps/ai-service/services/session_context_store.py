@@ -7,6 +7,8 @@ from events.models import SessionContextUpdate
 from exceptions.CacheMissError import CacheMissError
 from exceptions.NotFoundError import NotFoundError
 from models.enums import Difficulty
+from models.interview_plan import InterviewPlan
+from models.interview_runtime_context import InterviewRuntimeContext
 from models.session_runtime_context import InsertSessionRuntimeContext, SelectSessionRuntimeContext, SessionRuntimeContextBase
 from models.sessions import SessionContext
 from repositories.sessions import SessionRepository
@@ -27,6 +29,7 @@ class SessionContextStore:
     def _create_initial_runtime_ctx(
         self, 
         session_id: UUID,
+        plan: InterviewPlan | None = None,
     ) -> InsertSessionRuntimeContext:
         return InsertSessionRuntimeContext(
             session_id=session_id,
@@ -39,6 +42,7 @@ class SessionContextStore:
             overall_score=0,
             active_context="",
             context_tokens=0,
+            interview_runtime_context=InterviewRuntimeContext.from_plan(plan),
             version=1,
         )
     
@@ -59,7 +63,10 @@ class SessionContextStore:
         
         # handle it when it is first time accessed
         if session_runtime_ctx is None:
-            session_runtime_ctx = self._create_initial_runtime_ctx(session_id)
+            session_runtime_ctx = self._create_initial_runtime_ctx(
+                session_id,
+                session.interview_plan,
+            )
             await self._session_runtime_ctx_service.create_ctx(session_runtime_ctx)
         
         runtime = SessionRuntimeContextBase.model_validate(session_runtime_ctx)

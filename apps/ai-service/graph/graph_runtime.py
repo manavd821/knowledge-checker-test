@@ -70,5 +70,6 @@ class GraphRuntime:
             needs_summarization=result.needs_summarization,
             active_context=result.context.runtime.active_context, # changes on every graph execution
             context_tokens=result.context.runtime.context_tokens,
+            interview_runtime_context=result.context.runtime.interview_runtime_context,
             runtime_version=result.context.runtime.version + 1
         )

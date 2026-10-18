@@ -6,8 +6,10 @@ import {
     timestamp,
     boolean,
     real,
+    jsonb,
 } from "drizzle-orm/pg-core";
 import { sessions } from "@/modules/sessions/sessions.table";
+import type { InterviewRuntimeContext } from "@/modules/session-runtime-contexts/session-runtime-contexts.types";
 
 export const sessionRuntimeContext = pgTable(
     "session_runtime_context",
@@ -41,6 +43,9 @@ export const sessionRuntimeContext = pgTable(
 
         context_tokens: integer()
             .notNull(),
+
+        interview_runtime_context: jsonb()
+            .$type<InterviewRuntimeContext>(),
 
         version: integer()
             .notNull(),

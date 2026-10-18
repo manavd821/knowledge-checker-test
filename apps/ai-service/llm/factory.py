@@ -235,6 +235,96 @@ def register_session_brief_config(resolver: LLMResolver):
         ),
     )
 
+def register_interview_plan_config(resolver: LLMResolver):
+    resolver.register(
+        Tasks.INTERVIEW_PLAN,
+        ExecutionProfile.LOW_LATENCY,
+        TaskConfig(
+            temperature=0.4,
+            max_tokens=1000,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PLAN,
+        ExecutionProfile.HIGH_QUALITY,
+        TaskConfig(
+            temperature=0.4,
+            max_tokens=2000,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_2_5_PRO,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PLAN,
+        ExecutionProfile.LOW_COST,
+        TaskConfig(
+            temperature=0.4,
+            max_tokens=1000,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PLAN,
+        ExecutionProfile.BALANCED,
+        TaskConfig(
+            temperature=0.4,
+            max_tokens=1500,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_5_FLASH_LITE,
+        ),
+    )
+
+def register_interview_progress_config(resolver: LLMResolver):
+    resolver.register(
+        Tasks.INTERVIEW_PROGRESS,
+        ExecutionProfile.LOW_LATENCY,
+        TaskConfig(
+            temperature=0.1,
+            max_tokens=700,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PROGRESS,
+        ExecutionProfile.HIGH_QUALITY,
+        TaskConfig(
+            temperature=0.1,
+            max_tokens=1200,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_2_5_PRO,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PROGRESS,
+        ExecutionProfile.LOW_COST,
+        TaskConfig(
+            temperature=0.1,
+            max_tokens=700,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_1_FLASH_LITE,
+        ),
+    )
+
+    resolver.register(
+        Tasks.INTERVIEW_PROGRESS,
+        ExecutionProfile.BALANCED,
+        TaskConfig(
+            temperature=0.1,
+            max_tokens=1000,
+            llm_provider=LLMModelProvider.GOOGLE_GENAI,
+            llm_model=LLMModel.GEMINI_3_5_FLASH_LITE,
+        ),
+    )
+
 def register_context_summary_config(resolver: LLMResolver):
     resolver.register(
         Tasks.CONTEXT_SUMMARY,
@@ -315,6 +405,16 @@ def get_llm_resolver() -> LLMResolver:
     # SESSION BRIEF
     # ---------------------------------------------------------
     register_session_brief_config(resolver)
+
+    # ---------------------------------------------------------
+    # INTERVIEW PLAN
+    # ---------------------------------------------------------
+    register_interview_plan_config(resolver)
+
+    # ---------------------------------------------------------
+    # INTERVIEW PROGRESS
+    # ---------------------------------------------------------
+    register_interview_progress_config(resolver)
 
     return resolver
 

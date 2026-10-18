@@ -14,6 +14,8 @@ import { DocumentExtractionService } from "@/document/document-extraction.servic
 import { IAIClient } from "@/ai/ai-client";
 import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
 import { GenerateSessionBriefResponse } from "@/ai/dto/generate-session-brief.response";
+import { GenerateInterviewPlanRequest } from "@/ai/dto/generate-interview-plan.request";
+import { GenerateInterviewPlanResponse } from "@/ai/dto/generate-interview-plan.response";
 import { IObjectStorage } from "@/storage/object-storage";
 import { CreateSessionRoute, SelectDocument, SelectSession, Status } from "@/modules";
 import { MAX_BRIEF_DOCUMENT_CHARS } from "@/shared/enums";
@@ -51,6 +53,7 @@ const base_session = (
     custom_instructions: null,
     session_brief: null,
     session_brief_tokens: null,
+    interview_plan: null,
     scheduled_at: fixed_now,
     started_at: fixed_now,
     ended_at: null,
@@ -454,9 +457,25 @@ const create_data: CreateSessionRoute = {
     session_documents: [],
 };
 
+const default_plan: GenerateInterviewPlanResponse = {
+    interviewPlan: {
+        topics: [
+            {
+                topic: "Core concepts",
+                objectives: ["Explain the fundamentals"],
+                priority: "high",
+                expected_depth: "practical",
+            },
+        ],
+    },
+    tokenCount: 7,
+};
+
 const create_harness = (options: {
     brief?: GenerateSessionBriefResponse;
     brief_error?: Error;
+    plan?: GenerateInterviewPlanResponse;
+    plan_error?: Error;
     documents?: { name: string; key: string; extracted_text: string }[];
 }) => {
     const updates: {
@@ -464,6 +483,7 @@ const create_harness = (options: {
         update: Partial<SelectSession>;
     }[] = [];
     let brief_request: GenerateSessionBriefRequest | undefined;
+    let plan_request: GenerateInterviewPlanRequest | undefined;
 
     const document_for = (file: File) =>
         options.documents?.find((doc) => doc.name === file.name);
@@ -490,6 +510,13 @@ const create_harness = (options: {
                 }
                 return options.brief!;
             },
+            generate_interview_plan: async (data: GenerateInterviewPlanRequest) => {
+                plan_request = data;
+                if (options.plan_error) {
+                    throw options.plan_error;
+                }
+                return options.plan ?? default_plan;
+            },
         } as unknown as IAIClient,
         {
             extract: async (file: File) =>
@@ -510,7 +537,12 @@ const create_harness = (options: {
         {} as unknown as EvaluationSummariesRepository,
     );
 
-    return { service, updates, get_brief_request: () => brief_request };
+    return {
+        service,
+        updates,
+        get_brief_request: () => brief_request,
+        get_plan_request: () => plan_request,
+    };
 };
 
 test("createSession persists the AI-generated brief exactly once", async () => {
@@ -536,6 +568,70 @@ test("createSession still succeeds and stores no brief when generation fails", a
 
     assert.equal(session_id, "session-1");
     assert.equal(updates.some((u) => "session_brief" in u.update), false);
+});
+
+test("createSession persists the AI-generated interview plan exactly once", async () => {
+    const plan: GenerateInterviewPlanResponse = {
+        interviewPlan: {
+            topics: [
+                {
+                    topic: "Distributed systems",
+                    objectives: ["Reason about consistency"],
+                    priority: "high",
+                    expected_depth: "advanced",
+                },
+            ],
+        },
+        tokenCount: 31,
+    };
+    const { service, updates } = create_harness({
+        brief: { sessionBrief: "Focused technical interview.", tokenCount: 42 },
+        plan,
+    });
+
+    await service.createSession("user_1", create_data);
+
+    const plan_updates = updates.filter((u) => "interview_plan" in u.update);
+    assert.equal(plan_updates.length, 1);
+    assert.deepEqual(plan_updates[0].update.interview_plan, plan.interviewPlan);
+});
+
+test("createSession stores no plan and still succeeds when plan generation fails", async () => {
+    const { service, updates } = create_harness({
+        brief: { sessionBrief: "brief", tokenCount: 1 },
+        plan_error: new Error("ai service unavailable"),
+    });
+
+    const session_id = await service.createSession("user_1", create_data);
+
+    assert.equal(session_id, "session-1");
+    assert.equal(updates.some((u) => "interview_plan" in u.update), false);
+});
+
+test("createSession feeds the generated brief to plan generation", async () => {
+    const { service, get_plan_request } = create_harness({
+        brief: { sessionBrief: "Focused technical interview.", tokenCount: 42 },
+    });
+
+    await service.createSession("user_1", create_data);
+
+    const request = get_plan_request()!;
+    assert.equal(request.session_brief, "Focused technical interview.");
+    assert.equal(request.topic_type, "technical");
+    assert.equal(request.role_level, "intermediate");
+    assert.equal(request.difficulty, "medium");
+    assert.equal(request.domain, "swe");
+    assert.equal(request.ai_strictness, "balanced");
+});
+
+test("createSession does not feed a brief to plan generation when the brief failed", async () => {
+    const { service, get_plan_request } = create_harness({
+        brief_error: new Error("ai service unavailable"),
+    });
+
+    await service.createSession("user_1", create_data);
+
+    assert.equal(get_plan_request()!.session_brief, undefined);
 });
 
 test("createSession sends the whole session configuration to brief generation", async () => {

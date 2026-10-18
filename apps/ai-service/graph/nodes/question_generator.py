@@ -28,6 +28,8 @@ class QuestionGeneratorNode:
             overall_score=session.overall_score,
             previous_score=runtime.previous_score,
             active_context=runtime.active_context,
+            interview_plan=session.interview_plan,
+            interview_runtime_context=runtime.interview_runtime_context,
         )
         # update question asked
         updated_runtime_ctx = runtime.model_copy(

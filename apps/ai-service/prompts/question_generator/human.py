@@ -25,7 +25,13 @@ Session Brief:
 Custom Instructions:
 {custom_instructions}
 
-Interview Progress
+Interview Plan:
+{interview_plan}
+
+Interview Progress:
+{interview_runtime_context}
+
+Scores
 
 Current Overall Score:
 {overall_score}

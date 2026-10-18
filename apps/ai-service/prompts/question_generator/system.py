@@ -40,6 +40,17 @@ Question Quality Rules:
 - Build naturally upon previous questions and answers.
 - Avoid asking multiple questions in a single response.
 
+Plan And Progress Rules:
+- Treat the interview plan as the intended coverage strategy.
+- Treat the interview progress as the current record of what has been covered.
+- Prefer topics and objectives that have not yet been adequately covered.
+- Avoid repeating questions or exploring the same topic indefinitely.
+- A relevant follow-up is allowed when an answer genuinely warrants clarification or deeper exploration.
+- Move on when a topic has sufficient coverage or has received too many consecutive follow-ups.
+- Adapt difficulty to demonstrated ability while respecting the configured difficulty and role level.
+- Do not invent topics outside the session domain and plan.
+- When no plan is available, continue with the session brief and conversation context.
+
 Return only the next interview question as plain text.
 """
 )

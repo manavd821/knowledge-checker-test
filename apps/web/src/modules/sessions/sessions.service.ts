@@ -5,6 +5,7 @@ import { EvaluationSummariesRepository } from "@/modules/evaluation-summaries/ev
 import { CreateSession, CreateSessionParticipants, CreateSessionRoute, CreateSessionSchema, NewSession, SelectSession, Status } from "@/modules";
 import { IAIClient } from "@/ai/ai-client";
 import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
+import { GenerateInterviewPlanRequest } from "@/ai/dto/generate-interview-plan.request";
 import { DocumentExtractionService } from "@/document/document-extraction.service";
 import { IObjectStorage } from "@/storage/object-storage";
 import { StoredObject } from "@/storage/types/stored-object";
@@ -111,7 +112,7 @@ export class SessionService{
 
         // generate and store the session brief once, from the configuration and
         // the already-extracted document text available at creation time
-        await this.generate_and_store_session_brief(session_id, {
+        const session_brief = await this.generate_and_store_session_brief(session_id, {
             topic_type: data.topic_type,
             role_level: data.role_level,
             difficulty: data.difficulty,
@@ -120,6 +121,20 @@ export class SessionService{
             ai_strictness: data.ai_strictness,
             custom_instructions: data.custom_instructions,
             document_text: document_text,
+        });
+
+        // the plan reuses the brief as coverage context, so it is generated
+        // after the brief and stored once on the session row
+        await this.generate_and_store_interview_plan(session_id, {
+            topic_type: data.topic_type,
+            role_level: data.role_level,
+            difficulty: data.difficulty,
+            domain: data.domain,
+            custom_domain: data.custom_domain ?? undefined,
+            ai_strictness: data.ai_strictness,
+            custom_instructions: data.custom_instructions,
+            document_text: document_text,
+            session_brief: session_brief,
         });
 
         // add participants
@@ -167,7 +182,8 @@ export class SessionService{
 
     /**
      * Generates the AI session brief once, at creation, and stores it on the
-     * session row.
+     * session row. Returns the generated brief text so the interview plan can
+     * reuse it as coverage context.
      *
      * Persistence is best-effort on purpose: the brief is an enhancement, and a
      * failed AI call must never roll back or block an otherwise valid session.
@@ -177,7 +193,7 @@ export class SessionService{
     private async generate_and_store_session_brief(
         session_id: string,
         data: GenerateSessionBriefRequest,
-    ): Promise<void>{
+    ): Promise<string | undefined>{
         try {
             const brief = await this.ai_client.generate_session_brief(data);
             await this.session_repo.update(session_id, {
@@ -185,8 +201,38 @@ export class SessionService{
                 session_brief_tokens: brief.tokenCount,
             });
             logger.info("Session brief stored", { session_id });
+            return brief.sessionBrief;
         } catch (error) {
             logger.error("Failed to generate session brief", {
+                session_id,
+                error,
+            });
+            return undefined;
+        }
+    }
+
+    /**
+     * Generates the interview plan once, at creation, and stores it on the
+     * session row. The plan is the persistent coverage strategy for the
+     * session; progress against it lives in the runtime context instead.
+     *
+     * Persistence is best-effort on purpose: a failed AI call must never roll
+     * back or block an otherwise valid session. Nothing is written when
+     * generation fails (no fabricated plan), and the plan is only ever written
+     * here, so it cannot be persisted twice.
+     */
+    private async generate_and_store_interview_plan(
+        session_id: string,
+        data: GenerateInterviewPlanRequest,
+    ): Promise<void>{
+        try {
+            const plan = await this.ai_client.generate_interview_plan(data);
+            await this.session_repo.update(session_id, {
+                interview_plan: plan.interviewPlan,
+            });
+            logger.info("Interview plan stored", { session_id });
+        } catch (error) {
+            logger.error("Failed to generate interview plan", {
                 session_id,
                 error,
             });

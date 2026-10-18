@@ -246,6 +246,8 @@ class SessionProcessor(IEventHandler):
                 active_context=result.active_context,
                 context_tokens=result.context_tokens,
 
+                interview_runtime_context=result.interview_runtime_context,
+
                 version=result.runtime_version,
             ),
         )
@@ -268,6 +270,8 @@ class SessionProcessor(IEventHandler):
             active_context = result.active_context,
             context_tokens = result.context_tokens,
 
+            interview_runtime_context = result.interview_runtime_context,
+
             version = result.runtime_version,        
         )   
         await self._session_ctx_store.update_session_context_cache(
@@ -283,6 +287,7 @@ class SessionProcessor(IEventHandler):
             overall_score=result.overall_score,
             current_question=result.next_question,
             questions_asked=result.question_asked,
+            interview_runtime_context=result.interview_runtime_context,
             version=result.runtime_version,
         )
         await self._session_runtime_ctx_service.update_ctx_cache(

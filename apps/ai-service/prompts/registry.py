@@ -11,6 +11,10 @@ from prompts.hint_generator.human import HINT_GENERATION_HUMAN
 from prompts.hint_generator.system import HINT_GENERATION_SYSTEM
 from prompts.session_brief.human import SESSION_BRIEF_HUMAN
 from prompts.session_brief.system import SESSION_BRIEF_SYSTEM
+from prompts.interview_plan.human import INTERVIEW_PLAN_HUMAN
+from prompts.interview_plan.system import INTERVIEW_PLAN_SYSTEM
+from prompts.interview_progress.human import INTERVIEW_PROGRESS_HUMAN
+from prompts.interview_progress.system import INTERVIEW_PROGRESS_SYSTEM
 
 
 PROMPT_REGISTRY : dict[Tasks, ChatPromptTemplate] = {
@@ -33,6 +37,14 @@ PROMPT_REGISTRY : dict[Tasks, ChatPromptTemplate] = {
     Tasks.SESSION_BRIEF : ChatPromptTemplate.from_messages([
         SESSION_BRIEF_SYSTEM,
         SESSION_BRIEF_HUMAN,
+    ]),
+    Tasks.INTERVIEW_PLAN : ChatPromptTemplate.from_messages([
+        INTERVIEW_PLAN_SYSTEM,
+        INTERVIEW_PLAN_HUMAN,
+    ]),
+    Tasks.INTERVIEW_PROGRESS : ChatPromptTemplate.from_messages([
+        INTERVIEW_PROGRESS_SYSTEM,
+        INTERVIEW_PROGRESS_HUMAN,
     ]),
 }
 

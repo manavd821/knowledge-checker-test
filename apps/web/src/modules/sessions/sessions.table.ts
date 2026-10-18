@@ -7,6 +7,7 @@ import {
     timestamp,
     real,
     index,
+    jsonb,
 } from "drizzle-orm/pg-core";
 import { users } from "@/modules/users/users.table";
 import {
@@ -18,6 +19,7 @@ import {
     domainEnum,
     aiStrictnessEnum,
 } from "@/db/enums";
+import type { InterviewPlan } from "@/modules/sessions/interview-plan.schema";
 
 export const sessions = pgTable("sessions",
 {
@@ -50,6 +52,8 @@ export const sessions = pgTable("sessions",
 
     session_brief : text(),
     session_brief_tokens : integer(),
+
+    interview_plan : jsonb().$type<InterviewPlan>(),
 
     scheduled_at : timestamp({
         withTimezone : true

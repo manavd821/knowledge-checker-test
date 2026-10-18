@@ -3,6 +3,7 @@ from models.enums import (
     ContentType,
     Difficulty,
 )
+from models.interview_runtime_context import InterviewRuntimeContext
 
     
 class GraphResult(BaseModel):
@@ -26,6 +27,8 @@ class GraphResult(BaseModel):
     needs_summarization: bool | None = None
     active_context: str | None = None # changes on every graph execution
     context_tokens: int
+
+    interview_runtime_context: InterviewRuntimeContext | None = None
     
     runtime_version: int
     

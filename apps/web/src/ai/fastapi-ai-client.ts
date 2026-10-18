@@ -5,6 +5,11 @@ import {
     GenerateSessionBriefResponse,
     GenerateSessionBriefResponseSchema,
 } from "@/ai/dto/generate-session-brief.response";
+import { GenerateInterviewPlanRequest } from "@/ai/dto/generate-interview-plan.request";
+import {
+    GenerateInterviewPlanResponse,
+    GenerateInterviewPlanResponseSchema,
+} from "@/ai/dto/generate-interview-plan.response";
 
 
 export class FastAPIAIClient implements IAIClient{
@@ -13,12 +18,13 @@ export class FastAPIAIClient implements IAIClient{
         private readonly service_secret: string,
     ){}
 
-    async generate_session_brief(
-        data : GenerateSessionBriefRequest,
-    ): Promise<GenerateSessionBriefResponse> {
-        let res: Response;
+    private async post(
+        path: string,
+        operation: string,
+        data: unknown,
+    ): Promise<Response> {
         try {
-            res = await fetch(`${this.base_url}/session-brief`, {
+            return await fetch(`${this.base_url}${path}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -30,10 +36,20 @@ export class FastAPIAIClient implements IAIClient{
             throw new ExternalServiceError(
                 "AI service is unreachable",
                 "ai-service",
-                "generate_session_brief",
+                operation,
                 error,
             );
         }
+    }
+
+    async generate_session_brief(
+        data : GenerateSessionBriefRequest,
+    ): Promise<GenerateSessionBriefResponse> {
+        const res = await this.post(
+            "/session-brief",
+            "generate_session_brief",
+            data,
+        );
 
         if (!res.ok) {
             throw new ExternalServiceError(
@@ -46,5 +62,27 @@ export class FastAPIAIClient implements IAIClient{
 
         const json = await res.json();
         return GenerateSessionBriefResponseSchema.parse(json);
+    }
+
+    async generate_interview_plan(
+        data : GenerateInterviewPlanRequest,
+    ): Promise<GenerateInterviewPlanResponse> {
+        const res = await this.post(
+            "/interview-plan",
+            "generate_interview_plan",
+            data,
+        );
+
+        if (!res.ok) {
+            throw new ExternalServiceError(
+                "AI service failed to generate the interview plan",
+                "ai-service",
+                "generate_interview_plan",
+                { status: res.status },
+            );
+        }
+
+        const json = await res.json();
+        return GenerateInterviewPlanResponseSchema.parse(json);
     }
 }

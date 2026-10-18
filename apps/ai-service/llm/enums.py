@@ -26,4 +26,6 @@ class Tasks(str, Enum):
     HINT_GEN = "hint-gen"
     CONTEXT_SUMMARY = "context_summary"
     SESSION_BRIEF = "session_brief"
+    INTERVIEW_PLAN = "interview_plan"
+    INTERVIEW_PROGRESS = "interview_progress"
 

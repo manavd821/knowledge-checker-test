@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 
 import { FastAPIAIClient } from "@/ai/fastapi-ai-client";
 import { GenerateSessionBriefRequest } from "@/ai/dto/generate-session-brief.request";
+import { GenerateInterviewPlanRequest } from "@/ai/dto/generate-interview-plan.request";
 import { ExternalServiceError } from "@/exceptions/ExternalServiceError";
 
 /**
@@ -127,6 +128,115 @@ test("generate_session_brief rejects a response that does not match the response
         );
 
         await assert.rejects(() => client.generate_session_brief(request));
+    } finally {
+        restore();
+    }
+});
+
+const plan_request: GenerateInterviewPlanRequest = {
+    topic_type: "technical",
+    role_level: "senior",
+    difficulty: "hard",
+    domain: "swe",
+    custom_domain: "platform engineering",
+    ai_strictness: "strict",
+    custom_instructions: "focus on distributed systems",
+    document_text: "--- design.pdf ---\nKafka partitions.",
+    session_brief: "Focused technical interview.",
+};
+
+const plan_response = {
+    interviewPlan: {
+        topics: [
+            {
+                topic: "Kafka",
+                objectives: ["Reason about partitions"],
+                priority: "high" as const,
+                expected_depth: "advanced" as const,
+            },
+        ],
+    },
+    tokenCount: 21,
+};
+
+test("generate_interview_plan posts the request with the shared-secret header", async () => {
+    const { calls, restore } = stub_fetch(
+        new Response(
+            JSON.stringify(plan_response),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+
+    try {
+        const client = new FastAPIAIClient(
+            "https://ai.example.test",
+            "top-secret",
+        );
+        const result = await client.generate_interview_plan(plan_request);
+
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].url, "https://ai.example.test/interview-plan");
+        assert.equal(calls[0].init.method, "POST");
+
+        const headers = calls[0].init.headers as Record<string, string>;
+        assert.equal(headers["X-AI-Service-Secret"], "top-secret");
+
+        const body = JSON.parse(calls[0].init.body as string);
+        assert.deepEqual(body, plan_request);
+        assert.equal((calls[0].init.body as string).includes("top-secret"), false);
+        assert.deepEqual(result, plan_response);
+    } finally {
+        restore();
+    }
+});
+
+test("generate_interview_plan maps a non-OK AI service response to an external service error", async () => {
+    const { restore } = stub_fetch(new Response("nope", { status: 502 }));
+
+    try {
+        const client = new FastAPIAIClient(
+            "https://ai.example.test",
+            "top-secret",
+        );
+
+        await assert.rejects(
+            () => client.generate_interview_plan(plan_request),
+            (error: unknown) =>
+                error instanceof ExternalServiceError &&
+                error.status_code === 503,
+        );
+    } finally {
+        restore();
+    }
+});
+
+test("generate_interview_plan rejects a response that does not match the plan schema", async () => {
+    const { restore } = stub_fetch(
+        new Response(
+            JSON.stringify({
+                interviewPlan: {
+                    topics: [
+                        {
+                            topic: "Kafka",
+                            objectives: [],
+                            priority: "urgent",
+                            expected_depth: "advanced",
+                        },
+                    ],
+                },
+                tokenCount: 21,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+
+    try {
+        const client = new FastAPIAIClient(
+            "https://ai.example.test",
+            "top-secret",
+        );
+
+        await assert.rejects(() => client.generate_interview_plan(plan_request));
     } finally {
         restore();
     }

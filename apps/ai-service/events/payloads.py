@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from models.enums import ContentType, Difficulty, Speaker
+from models.interview_runtime_context import InterviewRuntimeContext
 
 class CandidateTurnCompleted(BaseModel):
     model_config = ConfigDict(
@@ -57,6 +58,8 @@ class RuntimeContextUpdated(BaseModel):
 
     active_context: str | None
     context_tokens: int
+
+    interview_runtime_context: InterviewRuntimeContext | None = None
 
     version: int
 

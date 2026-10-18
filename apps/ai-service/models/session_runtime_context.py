@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 from models.enums import Difficulty
+from models.interview_runtime_context import InterviewRuntimeContext
 
 class SessionRuntimeContextBase(BaseModel):
     
@@ -18,6 +19,8 @@ class SessionRuntimeContextBase(BaseModel):
 
     active_context: str
     context_tokens: int
+
+    interview_runtime_context: InterviewRuntimeContext | None = None
 
     version: int
 

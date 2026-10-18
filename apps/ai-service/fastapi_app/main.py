@@ -12,7 +12,9 @@ from models.enums import (
     Difficulty,
     AI_STRICTNESS,
 )
+from models.interview_plan import InterviewPlan
 from services.evaluation_service import EvaluationService
+from services.interview_plan_service import InterviewPlanService
 from services.question_service import QuestionService
 from services.session_brief_service import (
     MAX_DOCUMENT_TEXT_CHARS,
@@ -100,5 +102,44 @@ async def generate_session_brief(
     token_count = TokenService().estimate_tokens(brief)
     return SessionBriefResponse(
         sessionBrief=brief,
+        tokenCount=token_count,
+    )
+
+
+class InterviewPlanRequest(BaseModel):
+    model_config = ConfigDict(
+        use_enum_values=True,
+    )
+
+    topic_type : TopicType
+    role_level : RoleLevel
+    difficulty : Difficulty
+    domain : Domain
+    custom_domain : str | None = Field(default=None, max_length=50)
+    ai_strictness : AI_STRICTNESS
+    custom_instructions : str | None = Field(default=None, max_length=300)
+    document_text : str | None = Field(
+        default=None,
+        max_length=MAX_DOCUMENT_TEXT_CHARS,
+    )
+    session_brief : str | None = Field(default=None)
+
+
+class InterviewPlanResponse(BaseModel):
+    interviewPlan : InterviewPlan
+    tokenCount : int
+
+
+@app.post('/interview-plan', response_model=InterviewPlanResponse)
+async def generate_interview_plan(
+    payload : InterviewPlanRequest,
+    _ : None = Depends(verify_service_secret),
+) -> InterviewPlanResponse:
+    llm_gateway = get_llm_gateway(ExecutionProfile.BALANCED)
+    plan_service = InterviewPlanService(llm_gateway)
+    plan = await plan_service.generate_plan(**payload.model_dump())
+    token_count = TokenService().estimate_tokens(plan.model_dump_json())
+    return InterviewPlanResponse(
+        interviewPlan=plan,
         tokenCount=token_count,
     )

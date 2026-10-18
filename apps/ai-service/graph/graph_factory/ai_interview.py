@@ -15,10 +15,12 @@ from graph.nodes.question_generator import QuestionGeneratorNode
 from graph.nodes.response_assembler import ResponseAssemblerNode
 from graph.nodes.transcript_analyzer import TranscriptAnalyzerNode
 from graph.nodes.evaluator import EvalutorNode
+from graph.nodes.interview_progress_updater import InterviewProgressUpdaterNode
 
 from services.context_service import ContextService
 from services.difficulty_service import DifficultyService
 from services.evaluation_service import EvaluationService
+from services.interview_progress_service import InterviewProgressService
 from langgraph.graph.state import CompiledStateGraph
 from services.question_service import QuestionService
 from services.token_service import TokenService
@@ -47,6 +49,7 @@ class AIInterviewGraphFactory(IGraphFactory):
         token_service = TokenService(llm_gateway)
         context_service = ContextService(llm_gateway)
         difficulty_service = DifficultyService()
+        interview_progress_service = InterviewProgressService(llm_gateway)
         
         # nodes
         transcript_node = TranscriptAnalyzerNode(
@@ -60,6 +63,9 @@ class AIInterviewGraphFactory(IGraphFactory):
         evaluation_node = EvalutorNode(
             evaluation_service,
             token_service,
+        )
+        interview_progress_updater_node = InterviewProgressUpdaterNode(
+            interview_progress_service,
         )
         difficulty_resolver_node = DifficultyResolverNode(difficulty_service)
         question_node = QuestionGeneratorNode(
@@ -92,6 +98,10 @@ class AIInterviewGraphFactory(IGraphFactory):
             evaluation_node
         )
         builder.add_node(
+            "interview_progress_updater_node",
+            interview_progress_updater_node
+        )
+        builder.add_node(
             "response_assembler_node",
             response_assembler_node
         )
@@ -111,6 +121,10 @@ class AIInterviewGraphFactory(IGraphFactory):
         )
         builder.add_edge(
             "evaluation_node",
+            "interview_progress_updater_node",
+        )
+        builder.add_edge(
+            "interview_progress_updater_node",
             "difficulty_resolver_node",
         )
         builder.add_edge(

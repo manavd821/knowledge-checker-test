@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.orm.base import Base, pg_value_enum
@@ -135,6 +136,11 @@ class Session(Base):
 
     session_brief_tokens: Mapped[int | None] = mapped_column(
         Integer,
+    )
+
+    interview_plan: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
     )
 
     scheduled_at: Mapped[datetime] = mapped_column(

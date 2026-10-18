@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from events.payloads import CandidateTurnCompleted
 from models.enums import Difficulty
+from models.interview_runtime_context import InterviewRuntimeContext
 
 
 class SessionExecutionState(BaseModel):
@@ -23,6 +24,8 @@ class SessionRuntimeContextUpdate(BaseModel):
     current_question: str | None
     questions_asked: int
 
+    interview_runtime_context: InterviewRuntimeContext | None = None
+
     version: int
 
 class SessionContextUpdate(BaseModel):
@@ -36,6 +39,8 @@ class SessionContextUpdate(BaseModel):
 
     active_context: str | None
     context_tokens: int
+
+    interview_runtime_context: InterviewRuntimeContext | None = None
 
     version: int
     

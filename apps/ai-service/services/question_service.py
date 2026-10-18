@@ -6,6 +6,8 @@ from models.enums import (
     AI_STRICTNESS,
     Difficulty,
 )
+from models.interview_plan import InterviewPlan
+from models.interview_runtime_context import InterviewRuntimeContext
 from prompts.registry import get_prompt
 
 class QuestionService:
@@ -33,6 +35,8 @@ class QuestionService:
         overall_score : float | None,
         previous_score : float | None,
         active_context : str,
+        interview_plan : InterviewPlan | None = None,
+        interview_runtime_context : InterviewRuntimeContext | None = None,
     ) -> str:
         chain = self.get_chain()
         return await chain.ainvoke({
@@ -46,4 +50,14 @@ class QuestionService:
             "overall_score" : overall_score,
             "previous_score" : previous_score,
             "active_context" : active_context,
+            "interview_plan" : (
+                interview_plan.model_dump_json(indent=2)
+                if interview_plan is not None
+                else "No plan available."
+            ),
+            "interview_runtime_context" : (
+                interview_runtime_context
+                if interview_runtime_context is not None
+                else InterviewRuntimeContext()
+            ).model_dump_json(indent=2),
         })

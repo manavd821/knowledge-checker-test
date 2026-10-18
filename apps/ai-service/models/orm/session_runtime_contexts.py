@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.orm.base import Base
@@ -65,6 +66,11 @@ class SessionRuntimeContext(Base):
     context_tokens: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
+    )
+
+    interview_runtime_context: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
     )
 
     version: Mapped[int] = mapped_column(

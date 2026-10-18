@@ -14,6 +14,7 @@ from models.enums import (
     AI_STRICTNESS,
 )
 from models.session_runtime_context import SessionRuntimeContextBase
+from models.interview_plan import InterviewPlan
 class SessionCreate(BaseModel):
     created_by: str
 
@@ -65,6 +66,8 @@ class SelectSession(BaseModel):
 
     session_brief: str | None
     session_brief_tokens: int | None
+
+    interview_plan: InterviewPlan | None = None
 
     scheduled_at: datetime
     started_at: datetime | None
