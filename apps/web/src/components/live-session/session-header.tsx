@@ -2,7 +2,6 @@
 import { Bot } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ConnectionStatus } from "@/components/live-session/connection-status";
-import { LeaveButton } from "@/components/live-session/leave-button";
 import { SessionPanels } from "@/components/live-session/layout/session-panels";
 import { has_ai_participant } from "@/components/live-session/participant-meta";
 import { cn } from "@/lib/utils";
@@ -58,14 +57,14 @@ const STATUS_VARIANT: Record<
  *
  * Everything shown here is existing state: brand + session identity on the
  * left, then the authoritative timer, the session status, the AI status
- * (derived from the AI participant's presence), the connection status and the
- * leave action on the right.
+ * (derived from the AI participant's presence) and the connection status on
+ * the right.
  *
  * Responsive behaviour: the header wraps instead of ever overflowing, the
  * brand / session identity collapse below `md` (the same information is in
  * the Session sheet) and the `SessionPanels` sheet triggers only show below
  * `lg`, where the permanent side columns are hidden. The timer, the status
- * badges, the connection status and the leave action are always rendered.
+ * badges and the connection status are always rendered.
  */
 export function SessionHeader() {
     const session = useLiveSessionInfo();
@@ -163,8 +162,6 @@ export function SessionHeader() {
                 <span data-testid="connection-status">
                     <ConnectionStatus/>
                 </span>
-
-                <LeaveButton/>
             </div>
         </header>
     );

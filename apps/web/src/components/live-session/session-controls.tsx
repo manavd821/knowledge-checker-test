@@ -14,7 +14,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { LeaveButton } from "@/components/live-session/leave-button";
 import { useLiveSessionInfo } from "@/react/live-session/hooks/use-live-session-info";
 import { useParticipants } from "@/react/live-session/hooks/use-participants";
 import { useSessionID } from "@/react/live-session/hooks/use-session-id";
@@ -22,7 +21,7 @@ import { useSessionManager } from "@/react/live-session/hooks/use-session-manage
 
 /**
  * Session control part of the bottom control bar: pause / resume plus the
- * shared leave button.
+ * guarded end-session action.
  *
  * The lifecycle itself lives in the backend. The client only calls the
  * existing session APIs through the session manager and re-reads the
@@ -299,8 +298,6 @@ export function SessionControls(){
                     </DialogContent>
                 </Dialog>
             )}
-
-            <LeaveButton/>
 
             {error ? (
                 <p

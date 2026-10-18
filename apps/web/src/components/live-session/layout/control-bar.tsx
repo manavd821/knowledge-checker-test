@@ -5,7 +5,7 @@ import { SessionControls } from "@/components/live-session/session-controls";
 
 /**
  * Full width bottom control bar: microphone / camera / audio playback on the
- * left of the divider, session control (pause / resume / leave) on the right.
+ * left of the divider, session control (pause / resume / end) on the right.
  * It is a direct child of the layout root, so it is always visible.
  *
  * The inner groups wrap, so on narrow screens the controls stack onto extra
